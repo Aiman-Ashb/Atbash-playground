@@ -141,13 +141,13 @@ input, button {
    label on top, two equal-width generate buttons in a row beneath. */
 .codes-head { padding: 16px 16px 10px; border-bottom: 1px solid var(--border); }
 .codes-head h3 { padding: 0; margin: 0 0 10px; }
-/* Two equal columns — grid guarantees equal width and no overflow regardless
-   of label length, unlike flex-grow which depends on basis interpretation. */
-.code-gen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
-.code-gen .mini { width: 100%; text-align: center; }
+/* Full-width stacked buttons — a full-width button always fits its label, so
+   the text can never overflow regardless of sidebar width. */
+.code-gen { display: flex; flex-direction: column; gap: 8px; }
+.code-gen .mini { width: 100%; text-align: center; padding: 9px 10px; }
 .mini {
   font-size: 11px; padding: 7px 10px; border-radius: 6px; cursor: pointer;
-  line-height: 1; white-space: nowrap; height: auto; box-sizing: border-box;
+  line-height: 1; height: auto; box-sizing: border-box;
   background: var(--accent); color: #fff; border: none;
 }
 .mini.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
