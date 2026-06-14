@@ -41,13 +41,16 @@ export async function POST(req: Request) {
   const jar = await cookies();
   const secure = process.env.NODE_ENV === "production";
 
-  // ── Telegram login path: verify the signed identity, start a session ──
+  // ── Telegram login path: verify identity, then await ADMIN APPROVAL ──
+  // A verified Telegram user is authenticated but NOT yet authorized — they
+  // land in "pending" until an admin approves them in the observer. (Codes are
+  // pre-authorized, so the code path below goes straight to active.)
   if (body.telegram) {
     const result = verifyTelegramLogin(body.telegram);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 401 });
-    const session = createSession(`tg:${result.user.id}`, telegramLabel(result.user), "telegram");
+    const session = createSession(`tg:${result.user.id}`, telegramLabel(result.user), "telegram", "pending");
     setContestantCookie(jar, session);
-    return NextResponse.json({ role: "contestant", label: session.label });
+    return NextResponse.json({ role: "contestant", status: "pending", label: session.label });
   }
 
   const code = body.code?.trim();

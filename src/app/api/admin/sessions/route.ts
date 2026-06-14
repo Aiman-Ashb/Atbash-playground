@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { readToken, ADMIN_COOKIE } from "@/lib/auth";
-import { listSessions, getSession, endSession } from "@/lib/sessions";
+import { listSessions, getSession, endSession, approveSession } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
@@ -33,9 +33,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admin login required." }, { status: 401 });
   }
   const { action, id } = (await req.json().catch(() => ({}))) as { action?: string; id?: string };
-  if (action === "end" && id) {
+  if (!id) return NextResponse.json({ error: "id required." }, { status: 400 });
+  if (action === "end" || action === "deny") {
+    // "deny" rejects a pending request; "end" terminates an active session.
     endSession(id);
     return NextResponse.json({ ok: true });
+  }
+  if (action === "approve") {
+    return NextResponse.json({ ok: approveSession(id) });
   }
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; at: number; streaming?: boolean };
-type Summary = { id: string; label: string; code: string; source: "code" | "telegram"; status: "active" | "ended"; messageCount: number; lastActivity: number };
+type Summary = { id: string; label: string; code: string; source: "code" | "telegram"; status: "pending" | "active" | "ended"; messageCount: number; lastActivity: number };
 type Code = { code: string; label: string; createdAt: number; usedBySession?: string };
 
 export default function AdminPage() {
@@ -37,8 +37,8 @@ export default function AdminPage() {
     await fetch("/api/admin/codes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
     refreshCodes();
   }
-  async function endSession(id: string) {
-    await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "end", id }) });
+  async function sessionAction(action: "end" | "approve" | "deny", id: string) {
+    await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id }) });
   }
   function copyCode(code: string) {
     navigator.clipboard?.writeText(code).catch(() => {});
@@ -140,8 +140,16 @@ export default function AdminPage() {
             <div className="name">{s.label} {s.source === "telegram" && <span className="tag">Telegram</span>}</div>
             <div className="meta">
               {s.source === "telegram" ? "id" : "code"}: {s.code} · {s.messageCount} msgs ·{" "}
-              {s.status === "active" ? <span className="live">● live</span> : <span className="ended">ended</span>}
+              {s.status === "pending" ? <span className="pending">● awaiting approval</span>
+                : s.status === "active" ? <span className="live">● live</span>
+                : <span className="ended">ended</span>}
             </div>
+            {s.status === "pending" && (
+              <div className="codeActions" style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+                <button className="mini" onClick={() => sessionAction("approve", s.id)}>Approve</button>
+                <button className="mini danger" onClick={() => sessionAction("deny", s.id)}>Deny</button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -154,7 +162,7 @@ export default function AdminPage() {
             <button
               className="btn ghost"
               style={{ width: "auto", margin: 0, padding: "8px 14px" }}
-              onClick={() => endSession(selected)}
+              onClick={() => sessionAction("end", selected)}
             >
               End session
             </button>

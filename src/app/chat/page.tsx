@@ -7,7 +7,7 @@ type Msg = { id: string; role: "user" | "assistant"; content: string; streaming?
 
 export default function ChatPage() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [phase, setPhase] = useState<"loading" | "pending" | "active">("loading");
   const [label, setLabel] = useState("");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -15,20 +15,35 @@ export default function ChatPage() {
   const [error, setError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Entry happens at "/" now. If there's no active session, send them there.
+  // Entry happens at "/". A code session is already active; a Telegram session
+  // starts "pending" — we poll until an admin approves it (or it's gone).
   useEffect(() => {
-    fetch("/api/session")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.session) {
-          setLabel(d.session.label);
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+
+    async function check() {
+      try {
+        const d = await (await fetch("/api/session")).json();
+        if (cancelled) return;
+        if (!d.session) return router.replace("/");
+        setLabel(d.session.label);
+        if (d.session.status === "active") {
           setMessages(d.session.messages ?? []);
-          setReady(true);
+          setPhase("active");
         } else {
-          router.replace("/");
+          setPhase("pending");
+          timer = setTimeout(check, 2500); // keep polling until approved
         }
-      })
-      .catch(() => router.replace("/"));
+      } catch {
+        if (!cancelled) router.replace("/");
+      }
+    }
+
+    check();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -95,7 +110,27 @@ export default function ChatPage() {
     router.replace("/");
   }
 
-  if (!ready) return <div className="center"><div className="sub">Loading…</div></div>;
+  if (phase === "loading") return <div className="center"><div className="sub">Loading…</div></div>;
+
+  if (phase === "pending") {
+    return (
+      <div className="center">
+        <div className="card" style={{ textAlign: "center" }}>
+          <div className="spinner" />
+          <h1 className="title" style={{ marginTop: 12 }}>Waiting for approval</h1>
+          <p className="sub">
+            Signed in as <strong>{label}</strong>. An organizer needs to approve you before you can chat — hang tight, this updates automatically.
+          </p>
+          <button
+            className="btn ghost"
+            onClick={async () => { await fetch("/api/session", { method: "DELETE" }); router.replace("/"); }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="shell">

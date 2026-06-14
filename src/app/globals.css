@@ -127,6 +127,14 @@ input, button {
 .sess .meta { font-size: 11px; color: var(--dim); margin-top: 2px; }
 .live { color: var(--accent); font-size: 11px; }
 .ended { color: var(--dim); font-size: 11px; }
+.pending { color: #e0a52a; font-size: 11px; }
+
+.spinner {
+  width: 28px; height: 28px; margin: 0 auto;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Admin: codes panel ── */
 .codes-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }

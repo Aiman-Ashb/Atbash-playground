@@ -19,7 +19,10 @@ export type Msg = {
   streaming?: boolean;
 };
 
-export type SessionStatus = "active" | "ended";
+// "pending" = authenticated (e.g. Telegram-verified) but awaiting admin
+// approval before it can chat. Code/generated-code sessions skip straight to
+// "active" because the code itself is the authorization.
+export type SessionStatus = "pending" | "active" | "ended";
 export type SessionSource = "code" | "telegram";
 
 export type Session = {
@@ -58,7 +61,12 @@ function summarize(s: Session): SessionSummary {
   return { ...rest, messageCount: messages.length };
 }
 
-export function createSession(code: string, label?: string, source: SessionSource = "code"): Session {
+export function createSession(
+  code: string,
+  label?: string,
+  source: SessionSource = "code",
+  status: SessionStatus = "active",
+): Session {
   const id = randomUUID();
   const now = Date.now();
   const s: Session = {
@@ -66,7 +74,7 @@ export function createSession(code: string, label?: string, source: SessionSourc
     code,
     label: label || `Contestant ${store.size + 1}`,
     source,
-    status: "active",
+    status,
     createdAt: now,
     lastActivity: now,
     messages: [],
@@ -117,6 +125,17 @@ export function endSession(sessionId: string): void {
   s.status = "ended";
   s.lastActivity = Date.now();
   bus.emit("event", { type: "ended", sessionId } satisfies BusEvent);
+}
+
+/** Admin approves a pending (e.g. Telegram) session so it can start chatting. */
+export function approveSession(sessionId: string): boolean {
+  const s = store.get(sessionId);
+  if (!s || s.status !== "pending") return false;
+  s.status = "active";
+  s.lastActivity = Date.now();
+  // Re-emit the summary so admin lists update; the contestant polls /api/session.
+  bus.emit("event", { type: "session", session: summarize(s) } satisfies BusEvent);
+  return true;
 }
 
 /** Subscribe to live events (admin observer). Returns an unsubscribe fn. */
