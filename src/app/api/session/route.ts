@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { isValidAccessCode, makeToken, readToken, SESSION_COOKIE } from "@/lib/auth";
 import { createSession, getSession, endSession } from "@/lib/sessions";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
 /** POST /api/session — validate access code, start a session, set cookie. */
 export async function POST(req: Request) {
+  // Brute-force guard: 10 code attempts / 5 min per IP.
+  const rl = rateLimit(`session:${clientIp(req)}`, 10, 5 * 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   const { code, label } = (await req.json().catch(() => ({}))) as { code?: string; label?: string };
   if (!code || !isValidAccessCode(code)) {
     return NextResponse.json({ error: "Invalid access code." }, { status: 401 });
