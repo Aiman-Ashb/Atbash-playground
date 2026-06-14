@@ -31,19 +31,29 @@ export function isMock(): boolean {
  * Streams the agent's reply token-by-token as an async iterable of text deltas.
  * Caller is responsible for accumulating the full text if it needs it.
  */
-export async function* streamHermesReply(messages: ChatMessage[]): AsyncGenerator<string> {
+export async function* streamHermesReply(
+  messages: ChatMessage[],
+  opts: { sessionKey?: string } = {},
+): AsyncGenerator<string> {
   if (isMock()) {
     yield* mockReply(messages);
     return;
   }
 
   const { baseUrl, apiKey, model } = cfg();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+  // Scopes long-term memory for this conversation. For a Telegram-login user we
+  // pass their Telegram-derived key so the agent shares memory with that user's
+  // Telegram bot history. NOTE: the exact key format for matching the Telegram
+  // CHANNEL's scope should be confirmed with the agent operator (Honore/Tsion).
+  if (opts.sessionKey) headers["X-Hermes-Session-Key"] = opts.sessionKey;
+
   const res = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify({ model, messages, stream: true }),
   });
 

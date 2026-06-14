@@ -38,6 +38,14 @@ export async function POST(req: Request) {
     content: m.content,
   }));
 
+  // Scope long-term memory. Telegram-login users key by their Telegram id so
+  // the agent shares memory with their Telegram bot chats (format TBD with the
+  // operator). Code contestants stay isolated per session (fresh each event).
+  const sessionKey =
+    session.source === "telegram"
+      ? `agent:main:telegram:${session.code.replace(/^tg:/, "")}`
+      : `agent:main:api:${session.id}`;
+
   // Create the assistant message up front so deltas have a target.
   const assistant = appendMessage(session.id, "assistant", "", true);
 
@@ -49,7 +57,7 @@ export async function POST(req: Request) {
 
       try {
         send("start", { messageId: assistant?.id });
-        for await (const delta of streamHermesReply(history)) {
+        for await (const delta of streamHermesReply(history, { sessionKey })) {
           if (assistant) appendDelta(session.id, assistant.id, delta);
           send("delta", { text: delta });
         }
