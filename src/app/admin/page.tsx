@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; at: number; streaming?: boolean };
 type Summary = { id: string; label: string; code: string; status: "active" | "ended"; messageCount: number; lastActivity: number };
 
 export default function AdminPage() {
+  const router = useRouter();
   const [authed, setAuthed] = useState(false);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
 
   const [sessions, setSessions] = useState<Summary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -19,24 +18,16 @@ export default function AdminPage() {
 
   selectedRef.current = selected;
 
-  async function login(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || "Login failed.");
-      setAuthed(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  // Entry happens at "/". Confirm the admin cookie by probing a gated endpoint;
+  // if it's not valid, bounce to the unified code page.
+  useEffect(() => {
+    fetch("/api/admin/sessions")
+      .then((r) => {
+        if (r.ok) setAuthed(true);
+        else router.replace("/");
+      })
+      .catch(() => router.replace("/"));
+  }, [router]);
 
   // Live event stream once authed.
   useEffect(() => {
@@ -87,26 +78,9 @@ export default function AdminPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
-  if (!authed) {
-    return (
-      <div className="center">
-        <form className="card" onSubmit={login}>
-          <h1 className="title">Admin observer</h1>
-          <p className="sub">Read-only live view of contestant conversations.</p>
-          <input
-            className="input"
-            type="password"
-            placeholder="Admin password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoFocus
-          />
-          <button className="btn" disabled={busy || !password}>{busy ? "…" : "Sign in"}</button>
-          {error && <div className="error">{error}</div>}
-        </form>
-      </div>
-    );
-  }
+  // Unauthed users are redirected to "/" by the effect above; show a neutral
+  // placeholder in the meantime (no hint that this is the admin view).
+  if (!authed) return <div className="center"><div className="sub">Loading…</div></div>;
 
   return (
     <div className="admin">

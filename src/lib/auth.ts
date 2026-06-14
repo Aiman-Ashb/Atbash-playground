@@ -34,14 +34,42 @@ export function readToken(token: string | undefined): string | null {
   return value;
 }
 
-/** Valid contestant access codes from env (comma-separated). */
-export function validAccessCodes(): Set<string> {
+function parseCodes(raw: string | undefined): Set<string> {
   return new Set(
-    (process.env.ACCESS_CODES || "")
+    (raw || "")
       .split(",")
       .map((c) => c.trim())
       .filter(Boolean),
   );
+}
+
+/** Valid contestant access codes (comma-separated env). Give each contestant a
+ *  UNIQUE one — the code is their identity, so per-user tracking is automatic. */
+export function validAccessCodes(): Set<string> {
+  return parseCodes(process.env.ACCESS_CODES);
+}
+
+/** Admin codes (comma-separated). Falls back to ADMIN_PASSWORD for back-compat. */
+export function adminCodes(): Set<string> {
+  const codes = parseCodes(process.env.ADMIN_CODES);
+  const legacy = (process.env.ADMIN_PASSWORD || "").trim();
+  if (legacy) codes.add(legacy);
+  return codes;
+}
+
+export type Role = "admin" | "contestant";
+
+/**
+ * Classify a submitted code into a role, or null if unknown. Admin is checked
+ * first so an admin code is never treated as a contestant code. Matching is
+ * constant-time-ish across the known sets (small, fixed lists for an event).
+ */
+export function classifyCode(code: string): Role | null {
+  const c = code.trim();
+  if (!c) return null;
+  if (adminCodes().has(c)) return "admin";
+  if (validAccessCodes().has(c)) return "contestant";
+  return null;
 }
 
 export function isValidAccessCode(code: string): boolean {
@@ -49,9 +77,5 @@ export function isValidAccessCode(code: string): boolean {
 }
 
 export function isValidAdminPassword(password: string): boolean {
-  const expected = process.env.ADMIN_PASSWORD || "";
-  if (!expected) return false;
-  const a = Buffer.from(password);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
+  return adminCodes().has(password.trim());
 }

@@ -1,37 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { isValidAccessCode, makeToken, readToken, SESSION_COOKIE } from "@/lib/auth";
-import { createSession, getSession, endSession } from "@/lib/sessions";
-import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { readToken, SESSION_COOKIE } from "@/lib/auth";
+import { getSession, endSession } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
-/** POST /api/session — validate access code, start a session, set cookie. */
-export async function POST(req: Request) {
-  // Brute-force guard: 10 code attempts / 5 min per IP.
-  const rl = rateLimit(`session:${clientIp(req)}`, 10, 5 * 60_000);
-  if (!rl.ok) {
-    return NextResponse.json(
-      { error: "Too many attempts. Try again later." },
-      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
-    );
-  }
-
-  const { code, label } = (await req.json().catch(() => ({}))) as { code?: string; label?: string };
-  if (!code || !isValidAccessCode(code)) {
-    return NextResponse.json({ error: "Invalid access code." }, { status: 401 });
-  }
-  const session = createSession(code, label);
-  const jar = await cookies();
-  jar.set(SESSION_COOKIE, makeToken(session.id), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 4, // 4h
-  });
-  return NextResponse.json({ sessionId: session.id, label: session.label });
-}
+// Sessions are STARTED via POST /api/enter (the unified code gate). This route
+// only resumes (GET) and ends (DELETE) the current contestant session.
 
 /** GET /api/session — current session info (for resuming after refresh). */
 export async function GET() {

@@ -1,60 +1,39 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; streaming?: boolean };
 
 export default function ChatPage() {
+  const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState(false);
   const [label, setLabel] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Resume an existing session on load (survives refresh).
+  // Entry happens at "/" now. If there's no active session, send them there.
   useEffect(() => {
     fetch("/api/session")
       .then((r) => r.json())
       .then((d) => {
         if (d.session) {
-          setAuthed(true);
           setLabel(d.session.label);
           setMessages(d.session.messages ?? []);
+          setReady(true);
+        } else {
+          router.replace("/");
         }
       })
-      .finally(() => setReady(true));
-  }, []);
+      .catch(() => router.replace("/"));
+  }, [router]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
-
-  async function start(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Could not start session.");
-      setAuthed(true);
-      setLabel(d.label);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start session.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -113,34 +92,10 @@ export default function ChatPage() {
 
   async function endSession() {
     await fetch("/api/session", { method: "DELETE" });
-    setAuthed(false);
-    setMessages([]);
-    setCode("");
+    router.replace("/");
   }
 
   if (!ready) return <div className="center"><div className="sub">Loading…</div></div>;
-
-  if (!authed) {
-    return (
-      <div className="center">
-        <form className="card" onSubmit={start}>
-          <h1 className="title">Enter access code</h1>
-          <p className="sub">Your code starts a chat session with the agent.</p>
-          <input
-            className="input"
-            placeholder="Access code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            autoFocus
-          />
-          <button className="btn" disabled={busy || !code.trim()}>
-            {busy ? "Starting…" : "Start session"}
-          </button>
-          {error && <div className="error">{error}</div>}
-        </form>
-      </div>
-    );
-  }
 
   return (
     <div className="shell">
