@@ -16,7 +16,6 @@ export default function AdminPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [codes, setCodes] = useState<Code[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
-  const [lookups, setLookups] = useState<Record<string, string>>({});
   const selectedRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -40,22 +39,6 @@ export default function AdminPage() {
   }
   async function sessionAction(action: "end" | "approve" | "deny", id: string) {
     await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id }) });
-  }
-  // Resolve a pending Telegram handle via the bot to confirm it's a real,
-  // registered account (existence only — not proof the person owns it).
-  async function checkTelegram(s: Summary) {
-    const handle = s.code.replace(/^tgc?:/, "");
-    setLookups((p) => ({ ...p, [s.id]: "checking…" }));
-    try {
-      const d = await (await fetch(`/api/admin/telegram-lookup?handle=${encodeURIComponent(handle)}`)).json();
-      let msg: string;
-      if (d.error) msg = `⚠ ${d.error}`;
-      else if (d.exists) msg = `✓ real account — ${d.name ?? "?"}${d.username ? ` @${d.username}` : ""} · id ${d.id}`;
-      else msg = `✗ no such account${d.reason ? ` (${d.reason})` : ""}`;
-      setLookups((p) => ({ ...p, [s.id]: msg }));
-    } catch {
-      setLookups((p) => ({ ...p, [s.id]: "⚠ lookup failed" }));
-    }
   }
   function copyCode(code: string) {
     navigator.clipboard?.writeText(code).catch(() => {});
@@ -158,23 +141,11 @@ export default function AdminPage() {
         {sessions.length === 0 && <div className="sess meta">No sessions yet.</div>}
         {sessions.map((s) => (
           <div key={s.id} className={`sess ${selected === s.id ? "active" : ""}`} onClick={() => openSession(s.id)}>
-            <div className="name">{s.label} {s.source === "telegram" && <span className="tag">{s.code.startsWith("tg:") ? "Telegram ✓" : "Telegram (unverified)"}</span>}</div>
+            <div className="name">{s.label}</div>
             <div className="meta">
-              {s.source === "telegram" ? "id" : "code"}: {s.code} · {s.messageCount} msgs ·{" "}
-              {s.status === "pending" ? <span className="pending">● awaiting approval</span>
-                : s.status === "active" ? <span className="live">● live</span>
-                : <span className="ended">ended</span>}
+              code: {s.code} · {s.messageCount} msgs ·{" "}
+              {s.status === "active" ? <span className="live">● live</span> : <span className="ended">ended</span>}
             </div>
-            {s.status === "pending" && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <div className="codeActions" style={{ marginTop: 8 }}>
-                  <button className="mini" onClick={() => sessionAction("approve", s.id)}>Approve</button>
-                  <button className="mini danger" onClick={() => sessionAction("deny", s.id)}>Deny</button>
-                  {s.source === "telegram" && <button className="mini admin" onClick={() => checkTelegram(s)}>Check TG</button>}
-                </div>
-                {lookups[s.id] && <div className="meta" style={{ marginTop: 6 }}>{lookups[s.id]}</div>}
-              </div>
-            )}
           </div>
         ))}
       </div>
