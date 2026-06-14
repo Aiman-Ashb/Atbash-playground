@@ -116,8 +116,8 @@ export default function AdminPage() {
     <div className="admin">
       <div className="sidebar">
         <div className="codes-head">
-          <h3 style={{ padding: 0 }}>Access codes</h3>
-          <div className="codeActions">
+          <h3>Access codes</h3>
+          <div className="code-gen">
             <button className="mini" onClick={() => generateCode("contestant")}>+ Contestant</button>
             <button className="mini admin" onClick={() => generateCode("admin")}>+ Admin</button>
           </div>

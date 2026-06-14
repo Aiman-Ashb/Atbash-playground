@@ -137,9 +137,15 @@ input, button {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Admin: codes panel ── */
-.codes-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
+/* Block header so the buttons can't get vertically stretched by a flex parent;
+   label on top, two equal-width generate buttons in a row beneath. */
+.codes-head { padding: 16px 16px 10px; border-bottom: 1px solid var(--border); }
+.codes-head h3 { padding: 0; margin: 0 0 10px; }
+.code-gen { display: flex; gap: 8px; }
+.code-gen .mini { flex: 1; text-align: center; }
 .mini {
-  font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  font-size: 11px; padding: 7px 10px; border-radius: 6px; cursor: pointer;
+  line-height: 1; white-space: nowrap; align-self: center; height: auto;
   background: var(--accent); color: #fff; border: none;
 }
 .mini.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
