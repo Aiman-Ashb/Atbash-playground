@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; at: number; streaming?: boolean };
 type Summary = { id: string; label: string; code: string; status: "active" | "ended"; messageCount: number; lastActivity: number };
+type Code = { code: string; label: string; createdAt: number; usedBySession?: string };
 
 export default function AdminPage() {
   const router = useRouter();
@@ -13,18 +14,47 @@ export default function AdminPage() {
   const [sessions, setSessions] = useState<Summary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
+  const [codes, setCodes] = useState<Code[]>([]);
+  const [copied, setCopied] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   selectedRef.current = selected;
+
+  async function refreshCodes() {
+    const res = await fetch("/api/admin/codes");
+    if (res.ok) setCodes((await res.json()).codes ?? []);
+  }
+  async function generateCode() {
+    const res = await fetch("/api/admin/codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (res.ok) {
+      const { code } = await res.json();
+      await refreshCodes();
+      copyCode(code.code);
+    }
+  }
+  async function revokeCode(code: string) {
+    await fetch("/api/admin/codes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+    refreshCodes();
+  }
+  async function endSession(id: string) {
+    await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "end", id }) });
+  }
+  function copyCode(code: string) {
+    navigator.clipboard?.writeText(code).catch(() => {});
+    setCopied(code);
+    setTimeout(() => setCopied((c) => (c === code ? null : c)), 1500);
+  }
 
   // Entry happens at "/". Confirm the admin cookie by probing a gated endpoint;
   // if it's not valid, bounce to the unified code page.
   useEffect(() => {
     fetch("/api/admin/sessions")
       .then((r) => {
-        if (r.ok) setAuthed(true);
-        else router.replace("/");
+        if (r.ok) {
+          setAuthed(true);
+          refreshCodes();
+        } else router.replace("/");
       })
       .catch(() => router.replace("/"));
   }, [router]);
@@ -85,6 +115,24 @@ export default function AdminPage() {
   return (
     <div className="admin">
       <div className="sidebar">
+        <div className="codes-head">
+          <h3 style={{ padding: 0 }}>Access codes</h3>
+          <button className="mini" onClick={generateCode}>+ Generate</button>
+        </div>
+        {codes.length === 0 && <div className="sess meta">No codes generated. Click Generate for the next contestant.</div>}
+        {codes.map((c) => (
+          <div key={c.code} className="codeRow">
+            <div>
+              <span className="codeVal" onClick={() => copyCode(c.code)} title="Click to copy">{c.code}</span>
+              <span className="meta"> · {c.usedBySession ? "in use" : "unused"}</span>
+            </div>
+            <div className="codeActions">
+              <button className="mini" onClick={() => copyCode(c.code)}>{copied === c.code ? "✓" : "copy"}</button>
+              <button className="mini danger" onClick={() => revokeCode(c.code)}>revoke</button>
+            </div>
+          </div>
+        ))}
+
         <h3>Sessions ({sessions.length})</h3>
         {sessions.length === 0 && <div className="sess meta">No sessions yet.</div>}
         {sessions.map((s) => (
@@ -101,6 +149,16 @@ export default function AdminPage() {
       <div className="shell">
         <div className="topbar">
           <span className="badge">Observer · read-only</span>
+          <div className="grow" />
+          {selected && sessions.find((s) => s.id === selected)?.status === "active" && (
+            <button
+              className="btn ghost"
+              style={{ width: "auto", margin: 0, padding: "8px 14px" }}
+              onClick={() => endSession(selected)}
+            >
+              End session
+            </button>
+          )}
         </div>
         <div className="messages" ref={scrollRef}>
           {!selected && <div className="empty">Select a session to watch it live.</div>}

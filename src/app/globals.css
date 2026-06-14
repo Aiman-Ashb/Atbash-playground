@@ -123,3 +123,14 @@ input, button {
 .sess .meta { font-size: 11px; color: var(--dim); margin-top: 2px; }
 .live { color: var(--accent); font-size: 11px; }
 .ended { color: var(--dim); font-size: 11px; }
+
+/* ── Admin: codes panel ── */
+.codes-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
+.mini {
+  font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  background: var(--accent); color: #fff; border: none;
+}
+.mini.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+.codeRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.codeVal { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; font-weight: 700; letter-spacing: 1px; cursor: pointer; color: var(--accent-2); }
+.codeActions { display: flex; gap: 6px; flex-shrink: 0; }

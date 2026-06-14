@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { classifyCode, makeToken, SESSION_COOKIE, ADMIN_COOKIE } from "@/lib/auth";
+import { adminCodes, isValidAccessCode, makeToken, SESSION_COOKIE, ADMIN_COOKIE } from "@/lib/auth";
 import { createSession } from "@/lib/sessions";
+import { isGeneratedCode, getCode, markCodeUsed } from "@/lib/codes";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -21,16 +22,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const { code } = (await req.json().catch(() => ({}))) as { code?: string };
-  const role = code ? classifyCode(code) : null;
-  if (!role) {
-    return NextResponse.json({ error: "Invalid code." }, { status: 401 });
-  }
+  const code = (await req.json().catch(() => ({})) as { code?: string }).code?.trim();
+  if (!code) return NextResponse.json({ error: "Invalid code." }, { status: 401 });
 
   const jar = await cookies();
   const secure = process.env.NODE_ENV === "production";
 
-  if (role === "admin") {
+  // Admin first, so an admin code is never treated as a contestant code.
+  if (adminCodes().has(code)) {
     jar.set(ADMIN_COOKIE, makeToken("admin"), {
       httpOnly: true,
       sameSite: "lax",
@@ -41,8 +40,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ role: "admin" });
   }
 
-  // contestant — the code is the identity; one session per entry.
-  const session = createSession(code!.trim());
+  // Contestant: static env code OR an admin-generated code.
+  if (!isValidAccessCode(code) && !isGeneratedCode(code)) {
+    return NextResponse.json({ error: "Invalid code." }, { status: 401 });
+  }
+
+  // The code is the identity; carry its admin-set label onto the session.
+  const session = createSession(code, getCode(code)?.label);
+  markCodeUsed(code, session.id);
   jar.set(SESSION_COOKIE, makeToken(session.id), {
     httpOnly: true,
     sameSite: "lax",
