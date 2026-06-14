@@ -141,7 +141,7 @@ export default function AdminPage() {
         {sessions.length === 0 && <div className="sess meta">No sessions yet.</div>}
         {sessions.map((s) => (
           <div key={s.id} className={`sess ${selected === s.id ? "active" : ""}`} onClick={() => openSession(s.id)}>
-            <div className="name">{s.label} {s.source === "telegram" && <span className="tag">Telegram</span>}</div>
+            <div className="name">{s.label} {s.source === "telegram" && <span className="tag">{s.code.startsWith("tg:") ? "Telegram ✓" : "Telegram (unverified)"}</span>}</div>
             <div className="meta">
               {s.source === "telegram" ? "id" : "code"}: {s.code} · {s.messageCount} msgs ·{" "}
               {s.status === "pending" ? <span className="pending">● awaiting approval</span>

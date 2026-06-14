@@ -38,12 +38,13 @@ export async function POST(req: Request) {
     content: m.content,
   }));
 
-  // Scope long-term memory. Telegram-login users key by their Telegram id so
-  // the agent shares memory with their Telegram bot chats (format TBD with the
-  // operator). Code contestants stay isolated per session (fresh each event).
+  // Scope long-term memory. Only a VERIFIED Telegram login (code prefix "tg:")
+  // keys to the real Telegram id for continuity with their bot chats — a typed/
+  // unverified handle ("tgc:") or a code stays isolated per session, so nobody
+  // can claim another person's Telegram id to reach their agent memory.
   const sessionKey =
-    session.source === "telegram"
-      ? `agent:main:telegram:${session.code.replace(/^tg:/, "")}`
+    session.source === "telegram" && session.code.startsWith("tg:")
+      ? `agent:main:telegram:${session.code.slice(3)}`
       : `agent:main:api:${session.id}`;
 
   // Create the assistant message up front so deltas have a target.
