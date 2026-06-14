@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; at: number; streaming?: boolean };
-type Summary = { id: string; label: string; code: string; status: "active" | "ended"; messageCount: number; lastActivity: number };
+type Summary = { id: string; label: string; code: string; source: "code" | "telegram"; status: "active" | "ended"; messageCount: number; lastActivity: number };
 type Code = { code: string; label: string; createdAt: number; usedBySession?: string };
 
 export default function AdminPage() {
@@ -137,9 +137,9 @@ export default function AdminPage() {
         {sessions.length === 0 && <div className="sess meta">No sessions yet.</div>}
         {sessions.map((s) => (
           <div key={s.id} className={`sess ${selected === s.id ? "active" : ""}`} onClick={() => openSession(s.id)}>
-            <div className="name">{s.label}</div>
+            <div className="name">{s.label} {s.source === "telegram" && <span className="tag">Telegram</span>}</div>
             <div className="meta">
-              code: {s.code} · {s.messageCount} msgs ·{" "}
+              {s.source === "telegram" ? "id" : "code"}: {s.code} · {s.messageCount} msgs ·{" "}
               {s.status === "active" ? <span className="live">● live</span> : <span className="ended">ended</span>}
             </div>
           </div>

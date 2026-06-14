@@ -80,6 +80,10 @@ input, button {
   margin-top: 12px;
 }
 
+.divider { display: flex; align-items: center; gap: 10px; margin: 16px 0 4px; color: var(--dim); font-size: 12px; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.btn.tg { background: #229ed9; }
+
 /* ── Chat layout ── */
 .shell { display: flex; flex-direction: column; height: 100vh; }
 .topbar {
@@ -134,3 +138,4 @@ input, button {
 .codeRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .codeVal { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; font-weight: 700; letter-spacing: 1px; cursor: pointer; color: var(--accent-2); }
 .codeActions { display: flex; gap: 6px; flex-shrink: 0; }
+.tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #229ed9; border: 1px solid #229ed9; border-radius: 4px; padding: 1px 5px; margin-left: 6px; }

@@ -32,6 +32,24 @@ which set the code belongs to (the observer entrance is never advertised):
 Give each contestant a **unique** code — the code is their identity, so each
 conversation is tracked per-user automatically (no database needed).
 
+### Telegram login (optional, identity only)
+
+A contestant can also sign in with **Telegram** instead of a code. Important:
+Telegram here is just a **verified identity** — they still chat with the *same*
+Hermes agent through the same relay. We do **not** proxy the Telegram bot (the
+Bot API can't send messages to a bot on a user's behalf; that would need the
+user's Telegram account session).
+
+- **Dev (no bot):** `.env.local` ships with `NEXT_PUBLIC_TELEGRAM_LOGIN=mock` +
+  `TELEGRAM_MOCK=1`, so a "Continue with Telegram (dev)" button simulates a
+  verified login for testing.
+- **Real widget:** create/choose a bot via @BotFather, run `/setdomain` for your
+  site, then set `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` (the @username) and
+  `TELEGRAM_BOT_TOKEN` (server verifies the login signature). Drop the mock vars.
+
+The server verifies Telegram's HMAC signature ([src/lib/telegram.ts](src/lib/telegram.ts))
+so the identity can't be forged. Admin sees Telegram sessions tagged accordingly.
+
 ## Connecting the real Hermes
 
 When Honore/Tsion provide the host + key, set in `.env.local` (or your host's secrets):

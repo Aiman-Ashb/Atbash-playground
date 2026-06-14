@@ -20,12 +20,15 @@ export type Msg = {
 };
 
 export type SessionStatus = "active" | "ended";
+export type SessionSource = "code" | "telegram";
 
 export type Session = {
   id: string;
-  /** the access code that opened it (for the admin's reference) */
+  /** the access code (or Telegram identity) that opened it */
   code: string;
   label: string;
+  /** how the contestant entered — a plain code or a verified Telegram login */
+  source: SessionSource;
   status: SessionStatus;
   createdAt: number;
   lastActivity: number;
@@ -55,13 +58,14 @@ function summarize(s: Session): SessionSummary {
   return { ...rest, messageCount: messages.length };
 }
 
-export function createSession(code: string, label?: string): Session {
+export function createSession(code: string, label?: string, source: SessionSource = "code"): Session {
   const id = randomUUID();
   const now = Date.now();
   const s: Session = {
     id,
     code,
     label: label || `Contestant ${store.size + 1}`,
+    source,
     status: "active",
     createdAt: now,
     lastActivity: now,
