@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; at: number; streaming?: boolean };
 type Summary = { id: string; label: string; code: string; source: "code" | "telegram"; status: "pending" | "active" | "ended"; messageCount: number; lastActivity: number };
-type Code = { code: string; label: string; createdAt: number; usedBySession?: string };
+type Code = { code: string; label: string; role: "contestant" | "admin"; createdAt: number; usedBySession?: string };
 
 export default function AdminPage() {
   const router = useRouter();
@@ -25,8 +25,8 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/codes");
     if (res.ok) setCodes((await res.json()).codes ?? []);
   }
-  async function generateCode() {
-    const res = await fetch("/api/admin/codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  async function generateCode(role: "contestant" | "admin" = "contestant") {
+    const res = await fetch("/api/admin/codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
     if (res.ok) {
       const { code } = await res.json();
       await refreshCodes();
@@ -117,14 +117,18 @@ export default function AdminPage() {
       <div className="sidebar">
         <div className="codes-head">
           <h3 style={{ padding: 0 }}>Access codes</h3>
-          <button className="mini" onClick={generateCode}>+ Generate</button>
+          <div className="codeActions">
+            <button className="mini" onClick={() => generateCode("contestant")}>+ Contestant</button>
+            <button className="mini admin" onClick={() => generateCode("admin")}>+ Admin</button>
+          </div>
         </div>
-        {codes.length === 0 && <div className="sess meta">No codes generated. Click Generate for the next contestant.</div>}
+        {codes.length === 0 && <div className="sess meta">No codes generated. Click + Contestant for the next player, or + Admin to add another organizer.</div>}
         {codes.map((c) => (
           <div key={c.code} className="codeRow">
             <div>
               <span className="codeVal" onClick={() => copyCode(c.code)} title="Click to copy">{c.code}</span>
-              <span className="meta"> · {c.usedBySession ? "in use" : "unused"}</span>
+              {c.role === "admin" && <span className="tag" style={{ borderColor: "#e0a52a", color: "#e0a52a" }}>admin</span>}
+              <span className="meta"> · {c.role === "admin" ? "organizer" : c.usedBySession ? "in use" : "unused"}</span>
             </div>
             <div className="codeActions">
               <button className="mini" onClick={() => copyCode(c.code)}>{copied === c.code ? "✓" : "copy"}</button>

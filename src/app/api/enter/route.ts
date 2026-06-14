@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminCodes, isValidAccessCode, makeToken, SESSION_COOKIE, ADMIN_COOKIE } from "@/lib/auth";
 import { createSession, type Session } from "@/lib/sessions";
-import { isGeneratedCode, getCode, markCodeUsed } from "@/lib/codes";
+import { getCode, markCodeUsed } from "@/lib/codes";
 import { verifyTelegramLogin, telegramLabel } from "@/lib/telegram";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 
@@ -56,8 +56,11 @@ export async function POST(req: Request) {
   const code = body.code?.trim();
   if (!code) return NextResponse.json({ error: "Invalid code." }, { status: 401 });
 
+  const generated = getCode(code);
+
   // Admin first, so an admin code is never treated as a contestant code.
-  if (adminCodes().has(code)) {
+  // Admin = static env code OR an admin-role generated code.
+  if (adminCodes().has(code) || generated?.role === "admin") {
     jar.set(ADMIN_COOKIE, makeToken("admin"), {
       httpOnly: true,
       sameSite: "lax",
@@ -68,8 +71,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ role: "admin" });
   }
 
-  // Contestant: static env code OR an admin-generated code.
-  if (!isValidAccessCode(code) && !isGeneratedCode(code)) {
+  // Contestant: static env code OR a contestant-role generated code.
+  if (!isValidAccessCode(code) && generated?.role !== "contestant") {
     return NextResponse.json({ error: "Invalid code." }, { status: 401 });
   }
 

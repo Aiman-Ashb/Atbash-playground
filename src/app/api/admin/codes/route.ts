@@ -16,11 +16,12 @@ export async function GET() {
   return NextResponse.json({ codes: listCodes() });
 }
 
-/** POST { label? } — mint a fresh unique contestant code. */
+/** POST { label?, role? } — mint a fresh unique code (contestant or admin). */
 export async function POST(req: Request) {
   if (!(await requireAdmin())) return NextResponse.json({ error: "Admin only." }, { status: 401 });
-  const { label } = (await req.json().catch(() => ({}))) as { label?: string };
-  return NextResponse.json({ code: generateCode(label) });
+  const { label, role } = (await req.json().catch(() => ({}))) as { label?: string; role?: string };
+  const codeRole = role === "admin" ? "admin" : "contestant";
+  return NextResponse.json({ code: generateCode(label, codeRole) });
 }
 
 /** DELETE { code } — revoke (cancel) a code. */

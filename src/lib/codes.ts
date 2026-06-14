@@ -8,9 +8,12 @@
 
 import { randomBytes } from "node:crypto";
 
+export type CodeRole = "contestant" | "admin";
+
 export type GeneratedCode = {
   code: string;
   label: string;
+  role: CodeRole;
   createdAt: number;
   /** set to the session id once a contestant opens a chat with this code */
   usedBySession?: string;
@@ -30,12 +33,14 @@ function randomCode(len = 6): string {
 }
 
 /** Mint a fresh unique code. `label` is the name shown to the admin/stream. */
-export function generateCode(label?: string): GeneratedCode {
+export function generateCode(label?: string, role: CodeRole = "contestant"): GeneratedCode {
   let code = randomCode();
   while (store.has(code)) code = randomCode(); // collision-safe
+  const fallback = role === "admin" ? `Admin ${store.size + 1}` : `Contestant ${store.size + 1}`;
   const entry: GeneratedCode = {
     code,
-    label: label?.trim() || `Contestant ${store.size + 1}`,
+    label: label?.trim() || fallback,
+    role,
     createdAt: Date.now(),
   };
   store.set(code, entry);
