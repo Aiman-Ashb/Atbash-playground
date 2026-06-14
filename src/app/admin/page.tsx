@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [codes, setCodes] = useState<Code[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
+  const [lookups, setLookups] = useState<Record<string, string>>({});
   const selectedRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -39,6 +40,22 @@ export default function AdminPage() {
   }
   async function sessionAction(action: "end" | "approve" | "deny", id: string) {
     await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id }) });
+  }
+  // Resolve a pending Telegram handle via the bot to confirm it's a real,
+  // registered account (existence only — not proof the person owns it).
+  async function checkTelegram(s: Summary) {
+    const handle = s.code.replace(/^tgc?:/, "");
+    setLookups((p) => ({ ...p, [s.id]: "checking…" }));
+    try {
+      const d = await (await fetch(`/api/admin/telegram-lookup?handle=${encodeURIComponent(handle)}`)).json();
+      let msg: string;
+      if (d.error) msg = `⚠ ${d.error}`;
+      else if (d.exists) msg = `✓ real account — ${d.name ?? "?"}${d.username ? ` @${d.username}` : ""} · id ${d.id}`;
+      else msg = `✗ no such account${d.reason ? ` (${d.reason})` : ""}`;
+      setLookups((p) => ({ ...p, [s.id]: msg }));
+    } catch {
+      setLookups((p) => ({ ...p, [s.id]: "⚠ lookup failed" }));
+    }
   }
   function copyCode(code: string) {
     navigator.clipboard?.writeText(code).catch(() => {});
@@ -149,9 +166,13 @@ export default function AdminPage() {
                 : <span className="ended">ended</span>}
             </div>
             {s.status === "pending" && (
-              <div className="codeActions" style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
-                <button className="mini" onClick={() => sessionAction("approve", s.id)}>Approve</button>
-                <button className="mini danger" onClick={() => sessionAction("deny", s.id)}>Deny</button>
+              <div onClick={(e) => e.stopPropagation()}>
+                <div className="codeActions" style={{ marginTop: 8 }}>
+                  <button className="mini" onClick={() => sessionAction("approve", s.id)}>Approve</button>
+                  <button className="mini danger" onClick={() => sessionAction("deny", s.id)}>Deny</button>
+                  {s.source === "telegram" && <button className="mini admin" onClick={() => checkTelegram(s)}>Check TG</button>}
+                </div>
+                {lookups[s.id] && <div className="meta" style={{ marginTop: 6 }}>{lookups[s.id]}</div>}
               </div>
             )}
           </div>
