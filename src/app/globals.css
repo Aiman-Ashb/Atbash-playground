@@ -10,8 +10,6 @@
   --accent-2: #25b486;
   --user: #1d9e75;
   --danger: #e5484d;
-  /* Shared header height — keeps the chat topbar and the verdict-feed header
-     aligned even when one has a button (taller) and the other has plain text. */
   --header-h: 60px;
 }
 
