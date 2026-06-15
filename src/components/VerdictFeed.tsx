@@ -104,6 +104,9 @@ export function VerdictFeed() {
             onChange={(e) => setInput(e.target.value)}
             autoFocus
           />
+          <div className="feed-hint">
+            {input.trim().replace(/^0x/, "").length} chars · a full agent pubkey is 66
+          </div>
           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
             <button className="mini" type="submit" disabled={!input.trim() || saving}>
               {saving ? "Checking network…" : "Show verdicts"}
