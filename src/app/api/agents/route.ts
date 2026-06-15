@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-const execAsync = promisify(exec);
+// execFile (not exec) — args are an array, never parsed as shell.
+const execFileAsync = promisify(execFile);
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const openclawPath = process.env.OPENCLAW_PATH || "/Users/aimanmengesha/.local/bin/openclaw";
-    const { stdout } = await execAsync(`"${openclawPath}" agents list --json`);
+    // Resolve via PATH by default; override with OPENCLAW_PATH if needed.
+    const openclawPath = process.env.OPENCLAW_PATH || "openclaw";
+    const { stdout } = await execFileAsync(
+      openclawPath,
+      ["agents", "list", "--json"],
+      { timeout: 10_000, maxBuffer: 1024 * 1024 },
+    );
     const agents = JSON.parse(stdout);
     return NextResponse.json({ agents });
   } catch (err) {
