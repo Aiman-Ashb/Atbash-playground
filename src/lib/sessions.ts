@@ -36,6 +36,7 @@ export type Session = {
   createdAt: number;
   lastActivity: number;
   messages: Msg[];
+  agentId?: string;
 };
 
 // Survive Next.js hot-reload in dev by stashing on globalThis.
@@ -52,7 +53,8 @@ export type BusEvent =
   | { type: "session"; session: SessionSummary }
   | { type: "message"; sessionId: string; message: Msg }
   | { type: "message-delta"; sessionId: string; messageId: string; content: string }
-  | { type: "ended"; sessionId: string };
+  | { type: "ended"; sessionId: string }
+  | { type: "deleted"; sessionId: string };
 
 export type SessionSummary = Omit<Session, "messages"> & { messageCount: number };
 
@@ -66,6 +68,7 @@ export function createSession(
   label?: string,
   source: SessionSource = "code",
   status: SessionStatus = "active",
+  agentId?: string,
 ): Session {
   const id = randomUUID();
   const now = Date.now();
@@ -78,6 +81,7 @@ export function createSession(
     createdAt: now,
     lastActivity: now,
     messages: [],
+    agentId,
   };
   store.set(id, s);
   bus.emit("event", { type: "session", session: summarize(s) } satisfies BusEvent);
@@ -127,6 +131,13 @@ export function endSession(sessionId: string): void {
   bus.emit("event", { type: "ended", sessionId } satisfies BusEvent);
 }
 
+export function deleteSession(sessionId: string): void {
+  const deleted = store.delete(sessionId);
+  if (deleted) {
+    bus.emit("event", { type: "deleted", sessionId } satisfies BusEvent);
+  }
+}
+
 /** Admin approves a pending (e.g. Telegram) session so it can start chatting. */
 export function approveSession(sessionId: string): boolean {
   const s = store.get(sessionId);
@@ -136,6 +147,10 @@ export function approveSession(sessionId: string): boolean {
   // Re-emit the summary so admin lists update; the contestant polls /api/session.
   bus.emit("event", { type: "session", session: summarize(s) } satisfies BusEvent);
   return true;
+}
+
+export function getActiveSessionByCode(code: string): Session | undefined {
+  return [...store.values()].find((s) => s.code === code && s.status !== "ended");
 }
 
 /** Subscribe to live events (admin observer). Returns an unsubscribe fn. */

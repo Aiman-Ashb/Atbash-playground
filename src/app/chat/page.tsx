@@ -105,8 +105,8 @@ export default function ChatPage() {
     }
   }
 
-  async function endSession() {
-    await fetch("/api/session", { method: "DELETE" });
+  async function logout() {
+    await fetch("/api/logout", { method: "POST" });
     router.replace("/");
   }
 
@@ -123,7 +123,7 @@ export default function ChatPage() {
           </p>
           <button
             className="btn ghost"
-            onClick={async () => { await fetch("/api/session", { method: "DELETE" }); router.replace("/"); }}
+            onClick={logout}
           >
             Cancel
           </button>
@@ -137,8 +137,8 @@ export default function ChatPage() {
       <div className="topbar">
         <span className="badge"><span className="dot" />{label || "Contestant"}</span>
         <div className="grow" />
-        <button className="btn ghost" style={{ width: "auto", margin: 0, padding: "8px 14px" }} onClick={endSession}>
-          End session
+        <button className="btn ghost" style={{ width: "auto", margin: 0, padding: "8px 14px" }} onClick={logout}>
+          Log out
         </button>
       </div>
 

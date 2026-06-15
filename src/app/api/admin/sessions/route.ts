@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { readToken, ADMIN_COOKIE } from "@/lib/auth";
-import { listSessions, getSession, endSession, approveSession } from "@/lib/sessions";
+import { listSessions, getSession, endSession, approveSession, deleteSession } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ sessions: listSessions() });
 }
 
-/** POST { action: "end", id } — admin force-ends an active session. */
+/** POST { action: "end" | "deny" | "delete" | "approve", id } — admin manages a session. */
 export async function POST(req: Request) {
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Admin login required." }, { status: 401 });
@@ -37,6 +37,10 @@ export async function POST(req: Request) {
   if (action === "end" || action === "deny") {
     // "deny" rejects a pending request; "end" terminates an active session.
     endSession(id);
+    return NextResponse.json({ ok: true });
+  }
+  if (action === "delete") {
+    deleteSession(id);
     return NextResponse.json({ ok: true });
   }
   if (action === "approve") {

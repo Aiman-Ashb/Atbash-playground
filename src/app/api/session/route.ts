@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { readToken, SESSION_COOKIE } from "@/lib/auth";
-import { getSession, endSession } from "@/lib/sessions";
+import { getSession } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
 // Sessions are STARTED via POST /api/enter (the unified code gate). This route
-// only resumes (GET) and ends (DELETE) the current contestant session.
+// only resumes (GET) the current contestant session.
 
 /** GET /api/session — current session info. Returns pending sessions too so a
  *  Telegram user awaiting approval can poll until the admin lets them in; only
@@ -23,11 +23,3 @@ export async function GET() {
   });
 }
 
-/** DELETE /api/session — end the current session and clear the cookie. */
-export async function DELETE() {
-  const jar = await cookies();
-  const sid = readToken(jar.get(SESSION_COOKIE)?.value);
-  if (sid) endSession(sid);
-  jar.delete(SESSION_COOKIE);
-  return NextResponse.json({ ok: true });
-}

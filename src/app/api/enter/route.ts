@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminCodes, isValidAccessCode, makeToken, SESSION_COOKIE, ADMIN_COOKIE } from "@/lib/auth";
-import { createSession, type Session } from "@/lib/sessions";
+import { createSession, getActiveSessionByCode, type Session } from "@/lib/sessions";
 import { getCode, markCodeUsed } from "@/lib/codes";
 import { verifyTelegramLogin, telegramLabel } from "@/lib/telegram";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     code?: string;
     telegram?: Record<string, unknown>;
     telegramHandle?: string;
+    agentId?: string;
   };
   const jar = await cookies();
   const secure = process.env.NODE_ENV === "production";
@@ -48,9 +49,15 @@ export async function POST(req: Request) {
   if (body.telegram) {
     const result = verifyTelegramLogin(body.telegram);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 401 });
-    const session = createSession(`tg:${result.user.id}`, telegramLabel(result.user), "telegram", "pending");
+    const code = `tg:${result.user.id}`;
+    let session = getActiveSessionByCode(code);
+    if (!session) {
+      session = createSession(code, telegramLabel(result.user), "telegram", "pending", body.agentId);
+    } else if (body.agentId) {
+      session.agentId = body.agentId;
+    }
     setContestantCookie(jar, session);
-    return NextResponse.json({ role: "contestant", status: "pending", label: session.label });
+    return NextResponse.json({ role: "contestant", status: session.status, label: session.label });
   }
 
   // ── Telegram by typed username/ID: UNVERIFIED self-claim ──
@@ -63,9 +70,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Enter a valid Telegram username or numeric ID." }, { status: 400 });
     }
     const label = /^\d+$/.test(handle) ? `tg:${handle}` : `@${handle}`;
-    const session = createSession(`tgc:${handle}`, label, "telegram", "pending");
+    const code = `tgc:${handle}`;
+    let session = getActiveSessionByCode(code);
+    if (!session) {
+      session = createSession(code, label, "telegram", "pending", body.agentId);
+    } else if (body.agentId) {
+      session.agentId = body.agentId;
+    }
     setContestantCookie(jar, session);
-    return NextResponse.json({ role: "contestant", status: "pending", label: session.label });
+    return NextResponse.json({ role: "contestant", status: session.status, label: session.label });
   }
 
   const code = body.code?.trim();
@@ -91,9 +104,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid code." }, { status: 401 });
   }
 
-  // The code is the identity; carry its admin-set label onto the session.
-  const session = createSession(code, getCode(code)?.label, "code");
-  markCodeUsed(code, session.id);
+  // Check if an active session already exists for this code
+  let session = getActiveSessionByCode(code);
+  if (!session) {
+    session = createSession(code, getCode(code)?.label, "code", "active", body.agentId);
+    markCodeUsed(code, session.id);
+  } else if (body.agentId) {
+    session.agentId = body.agentId;
+  }
   setContestantCookie(jar, session);
   return NextResponse.json({ role: "contestant", label: session.label });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
@@ -9,6 +9,34 @@ export default function Home() {
   const [tg, setTg] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [agents, setAgents] = useState<Array<{ id: string; name?: string; isDefault?: boolean }>>([]);
+  const [selectedAgent, setSelectedAgent] = useState("main");
+
+  // Fetch configured OpenClaw agents on mount
+  useEffect(() => {
+    fetch("/api/agents")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.agents && d.agents.length > 0) {
+          setAgents(d.agents);
+          const defaultAgent = d.agents.find((a: any) => a.isDefault)?.id || d.agents[0].id;
+          setSelectedAgent(defaultAgent);
+        }
+      })
+      .catch((err) => console.error("Error loading agents:", err));
+  }, []);
+
+  // Redirect to chat page if session is already active
+  useEffect(() => {
+    fetch("/api/session")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.session) {
+          router.replace("/chat");
+        }
+      })
+      .catch((err) => console.error("Error checking session:", err));
+  }, [router]);
 
   // Post to the unified gate and route by the server's decision. Telegram-handle
   // logins return status "pending" → the /chat page shows a waiting screen until
@@ -20,7 +48,7 @@ export default function Home() {
       const res = await fetch("/api/enter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, agentId: selectedAgent }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Could not sign in.");
@@ -36,6 +64,25 @@ export default function Home() {
       <div className="card">
         <h1 className="title">Atbash Playground</h1>
         <p className="sub">Enter your access code, or sign in with your Telegram handle.</p>
+
+        {agents.length > 0 && (
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "11px", color: "var(--dim)", display: "block", marginBottom: "6px", textTransform: "uppercase", fontWeight: 600 }}>Target Agent</label>
+            <select
+              className="input"
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              disabled={busy}
+              style={{ cursor: "pointer", width: "100%" }}
+            >
+              {agents.map((a) => (
+                <option key={a.id} value={a.id} style={{ background: "var(--panel)" }}>
+                  {a.name || a.id} {a.isDefault ? "(default)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <form onSubmit={(e) => { e.preventDefault(); if (code.trim()) submit({ code }); }}>
           <input

@@ -38,8 +38,17 @@ export default function AdminPage() {
     await fetch("/api/admin/codes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
     refreshCodes();
   }
-  async function sessionAction(action: "end" | "approve" | "deny", id: string) {
-    await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id }) });
+  async function sessionAction(action: "end" | "approve" | "deny" | "delete", id: string) {
+    if (action === "delete") {
+      if (!confirm("Are you sure you want to permanently delete this conversation history?")) return;
+    }
+    const res = await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id }) });
+    if (res.ok && action === "delete") {
+      if (selected === id) {
+        setSelected(null);
+        setMessages([]);
+      }
+    }
   }
   // Resolve a pending Telegram handle via the bot to confirm it's a real,
   // registered account (existence only — not proof the person owns it).
@@ -102,6 +111,14 @@ export default function AdminPage() {
     es.addEventListener("ended", (e) => {
       const { sessionId } = JSON.parse((e as MessageEvent).data);
       setSessions((prev) => prev.map((p) => (p.id === sessionId ? { ...p, status: "ended" } : p)));
+    });
+    es.addEventListener("deleted", (e) => {
+      const { sessionId } = JSON.parse((e as MessageEvent).data);
+      setSessions((prev) => prev.filter((p) => p.id !== sessionId));
+      if (selectedRef.current === sessionId) {
+        setSelected(null);
+        setMessages([]);
+      }
     });
 
     return () => es.close();
@@ -190,6 +207,15 @@ export default function AdminPage() {
               onClick={() => sessionAction("end", selected)}
             >
               End session
+            </button>
+          )}
+          {selected && (
+            <button
+              className="btn ghost"
+              style={{ width: "auto", margin: 0, padding: "8px 14px", marginLeft: 8, color: "var(--danger)", borderColor: "var(--border)" }}
+              onClick={() => sessionAction("delete", selected)}
+            >
+              Delete conversation
             </button>
           )}
         </div>

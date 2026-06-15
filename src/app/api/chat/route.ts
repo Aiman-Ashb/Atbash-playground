@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
       try {
         send("start", { messageId: assistant?.id });
-        for await (const delta of streamHermesReply(history, { sessionKey })) {
+        for await (const delta of streamHermesReply(history, { sessionKey, agentId: session.agentId })) {
           if (assistant) appendDelta(session.id, assistant.id, delta);
           send("delta", { text: delta });
         }

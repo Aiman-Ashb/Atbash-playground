@@ -1,106 +1,78 @@
-/**
- * The ONE place the playground talks to Hermes.
- *
- * Everything else (API routes, UI) goes through `streamHermesReply`. When the
- * real host arrives, only HERMES_API_URL / HERMES_API_KEY change — no other
- * file touches the endpoint. Until then, HERMES_MOCK=1 streams a canned reply
- * so the whole app runs end-to-end.
- *
- * Uses the Hermes API server's OpenAI-compatible endpoint:
- *   POST {HERMES_API_URL}/v1/chat/completions   (stream: true → SSE)
- *   Authorization: Bearer {HERMES_API_KEY}
- */
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+
+const execAsync = promisify(exec);
 
 export type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
 function cfg() {
-  const baseUrl = (process.env.HERMES_API_URL || "").replace(/\/+$/, "");
-  const apiKey = process.env.HERMES_API_KEY || "";
-  const model = process.env.HERMES_MODEL || "hermes-agent";
+  const openclawPath = process.env.OPENCLAW_PATH || "/Users/aimanmengesha/.local/bin/openclaw";
   const mock = (process.env.HERMES_MOCK ?? "0") === "1";
-  return { baseUrl, apiKey, model, mock };
+  return { openclawPath, mock };
 }
 
-/** True when we're NOT talking to a real agent (no host yet / mock flag set). */
+/** True when we're NOT talking to a real agent (mock flag set). */
 export function isMock(): boolean {
-  const { mock, baseUrl, apiKey } = cfg();
-  return mock || !baseUrl || !apiKey;
+  return cfg().mock;
 }
 
 /**
- * Streams the agent's reply token-by-token as an async iterable of text deltas.
- * Caller is responsible for accumulating the full text if it needs it.
+ * Runs the agent's turn by executing the OpenClaw CLI and streams the response.
  */
 export async function* streamHermesReply(
   messages: ChatMessage[],
-  opts: { sessionKey?: string } = {},
+  opts: { sessionKey?: string; agentId?: string } = {},
 ): AsyncGenerator<string> {
   if (isMock()) {
     yield* mockReply(messages);
     return;
   }
 
-  const { baseUrl, apiKey, model } = cfg();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-  };
-  // Scopes long-term memory for this conversation. For a Telegram-login user we
-  // pass their Telegram-derived key so the agent shares memory with that user's
-  // Telegram bot history. NOTE: the exact key format for matching the Telegram
-  // CHANNEL's scope should be confirmed with the agent operator (Honore/Tsion).
-  if (opts.sessionKey) headers["X-Hermes-Session-Key"] = opts.sessionKey;
+  const { openclawPath } = cfg();
+  const agentId = opts.agentId || process.env.OPENCLAW_AGENT || "main";
+  const sessionKey = opts.sessionKey || "default-session";
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
 
-  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ model, messages, stream: true }),
-  });
+  try {
+    // Sanitize message for CLI execution: escape backslashes and double quotes
+    const sanitizedMsg = lastUserMessage
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"');
 
-  if (!res.ok || !res.body) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Hermes API error ${res.status}: ${detail.slice(0, 300)}`);
-  }
+    const cmd = `"${openclawPath}" agent --agent "${agentId}" --session-id "${sessionKey}" --message "${sanitizedMsg}" --json`;
+    console.log(`[OpenClaw] Executing: ${cmd}`);
 
-  // Parse the SSE stream: lines of `data: {json}\n\n`, terminated by `data: [DONE]`.
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+    const { stdout } = await execAsync(cmd);
+    const parsed = JSON.parse(stdout);
+    
+    // Extract the text payload from the JSON result
+    const textResponse = parsed?.result?.payloads?.[0]?.text || "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? ""; // keep the trailing partial event
-
-    for (const evt of events) {
-      const line = evt.split("\n").find((l) => l.startsWith("data:"));
-      if (!line) continue;
-      const data = line.slice(5).trim();
-      if (data === "[DONE]") return;
-      try {
-        const json = JSON.parse(data) as {
-          choices?: Array<{ delta?: { content?: string } }>;
-        };
-        const delta = json.choices?.[0]?.delta?.content;
-        if (delta) yield delta;
-      } catch {
-        // Ignore keep-alives / non-JSON progress events (e.g. hermes.tool.progress).
-      }
+    if (!textResponse) {
+      yield "No response received from agent.";
+      return;
     }
+
+    // Stream it back chunk-by-chunk to simulate real-time text delivery in the UI
+    const chunks = textResponse.split(/(\s+)/);
+    for (const chunk of chunks) {
+      yield chunk;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  } catch (err) {
+    console.error("OpenClaw agent execution failed:", err);
+    const msg = err instanceof Error ? err.message : "OpenClaw failed to execute turn.";
+    yield `[error: ${msg}]`;
   }
 }
 
-/** Canned streaming reply for mock mode — lets the UI/relay work with no host. */
+/** Canned streaming reply for mock mode. */
 async function* mockReply(messages: ChatMessage[]): AsyncGenerator<string> {
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   const text =
-    `[mock] I'm a stand-in for the Hermes agent (no host wired up yet). ` +
+    `[mock] I'm a stand-in for your OpenClaw agent. ` +
     `You said: "${lastUser.slice(0, 200)}". ` +
-    `Once HERMES_API_URL and HERMES_API_KEY point at a live agent and HERMES_MOCK=0, ` +
-    `this exact stream will carry the real agent's reply.`;
+    `Set HERMES_MOCK=0 in your .env.local to target your real local OpenClaw gateway.`;
   for (const word of text.split(" ")) {
     yield word + " ";
     await new Promise((r) => setTimeout(r, 35));
