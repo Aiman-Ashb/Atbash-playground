@@ -42,14 +42,16 @@ export function networkByName(name: string | undefined): Network | null {
   return networks().find((n) => n.name === name) ?? null;
 }
 
-/** POST a read query to a specific network's node. */
+/** POST a read query to a specific network's node. Live chain data, so never
+ *  cached; a hard timeout keeps a slow/unreachable node from hanging the feed. */
 async function queryOn<T>(net: Network, type: string, args: Record<string, unknown>): Promise<T | null> {
   try {
     const res = await fetch(`${net.nodeUrl}/query/${net.brid}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, ...args }),
-      next: { revalidate: 2 },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
     return (await res.json()) as T;
