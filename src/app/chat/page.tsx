@@ -149,8 +149,18 @@ export default function ChatPage() {
             <div>
               <div className="who">{m.role === "user" ? "You" : "Agent"}</div>
               <div className={`bubble ${m.role}`}>
-                {m.content}
-                {m.streaming && <span style={{ opacity: 0.5 }}>▌</span>}
+                {m.content === "" && m.streaming ? (
+                  <div className="typing-indicator">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                ) : (
+                  <>
+                    {m.content}
+                    {m.streaming && <span style={{ opacity: 0.5 }}>▌</span>}
+                  </>
+                )}
               </div>
             </div>
           </div>
