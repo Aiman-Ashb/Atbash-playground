@@ -450,6 +450,10 @@ select.input {
   background: var(--accent);
   color: #fff;
   border: none;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background-color 0.2s, filter 0.2s;
 }
 .mini:hover {
@@ -492,6 +496,7 @@ select.input {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  align-items: center;
 }
 
 .tag {
