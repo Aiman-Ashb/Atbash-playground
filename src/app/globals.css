@@ -10,6 +10,7 @@
   --accent-2: #25b486;
   --user: #1d9e75;
   --danger: #e5484d;
+  --header-h: 60px;
 }
 
 * { box-sizing: border-box; }
@@ -91,6 +92,7 @@ input, button {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 20px; border-bottom: 1px solid var(--border);
   background: var(--panel);
+  min-height: var(--header-h);
 }
 .topbar .grow { flex: 1; }
 .badge { font-size: 12px; color: var(--muted); }
@@ -120,7 +122,7 @@ input, button {
 .playground .shell { flex: 1; min-width: 0; height: 100%; }
 
 .feed { width: 360px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
-.feed-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 700; color: var(--text); position: sticky; top: 0; background: var(--panel); display: flex; align-items: center; justify-content: space-between; }
+.feed-head { padding: 12px 20px; min-height: var(--header-h); border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 700; color: var(--text); position: sticky; top: 0; background: var(--panel); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .feed-empty { padding: 20px 16px; color: var(--dim); font-size: 13px; }
 .feed-form { padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .feed-form label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
