@@ -125,6 +125,9 @@ input, button {
 .feed-form { padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .feed-form label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
 .feed-agent { padding: 8px 16px; font-size: 11px; color: var(--dim); font-family: ui-monospace, monospace; border-bottom: 1px solid var(--border); }
+.net-tag { margin-left: 8px; font-family: ui-sans-serif, system-ui; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 4px; }
+.net-public { background: rgba(29,158,117,0.18); color: var(--accent-2); }
+.net-private { background: rgba(224,165,42,0.18); color: #e0a52a; }
 .link-btn { background: none; border: none; color: var(--accent); font-size: 11px; font-weight: 600; cursor: pointer; padding: 0; }
 
 .vcard { padding: 12px 16px; border-bottom: 1px solid var(--border); border-left: 3px solid var(--dim); }

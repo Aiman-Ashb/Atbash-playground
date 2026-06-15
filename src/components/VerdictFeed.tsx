@@ -28,9 +28,11 @@ export function VerdictFeed() {
   const [configured, setConfigured] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [agent, setAgent] = useState("");
+  const [network, setNetwork] = useState("");
   const [input, setInput] = useState("");
   const [editing, setEditing] = useState(false);
   const [savingErr, setSavingErr] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -41,6 +43,7 @@ export function VerdictFeed() {
         if (cancelled) return;
         setConfigured(d.configured !== false);
         setAgent(d.agent || "");
+        setNetwork(d.network || "");
         setItems(Array.isArray(d.items) ? d.items : []);
         setLoaded(true);
       } catch {
@@ -58,19 +61,25 @@ export function VerdictFeed() {
   async function saveAgent(e: React.FormEvent) {
     e.preventDefault();
     setSavingErr("");
-    const res = await fetch("/api/session/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pubkey: input.trim() }),
-    });
-    const d = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setSavingErr(d.error || "Could not set agent.");
-      return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/session/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pubkey: input.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSavingErr(d.error || "Could not set agent.");
+        return;
+      }
+      setAgent(d.agent || "");
+      setNetwork(d.network || "");
+      setEditing(false);
+      setLoaded(false); // fresh "loading" until the next poll lands
+    } finally {
+      setSaving(false);
     }
-    setAgent(d.agent || "");
-    setEditing(false);
-    setLoaded(false); // trigger a fresh "loading" until the next poll lands
   }
 
   const showForm = editing || !agent;
@@ -96,14 +105,21 @@ export function VerdictFeed() {
             autoFocus
           />
           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-            <button className="mini" type="submit" disabled={!input.trim()}>Show verdicts</button>
+            <button className="mini" type="submit" disabled={!input.trim() || saving}>
+              {saving ? "Checking network…" : "Show verdicts"}
+            </button>
             {agent && <button className="mini danger" type="button" onClick={() => setEditing(false)}>Cancel</button>}
           </div>
           {savingErr && <div className="error" style={{ fontSize: 11 }}>{savingErr}</div>}
         </form>
       )}
 
-      {!showForm && agent && <div className="feed-agent">agent: {agent.slice(0, 12)}…</div>}
+      {!showForm && agent && (
+        <div className="feed-agent">
+          agent: {agent.slice(0, 12)}…
+          {network && <span className={`net-tag net-${network}`}>{network}</span>}
+        </div>
+      )}
       {!showForm && !configured && <div className="feed-empty">Verdict feed unavailable.</div>}
       {!showForm && configured && loaded && items.length === 0 && <div className="feed-empty">No verdicts yet for this agent.</div>}
       {!showForm && configured && !loaded && <div className="feed-empty">Loading…</div>}

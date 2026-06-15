@@ -34,6 +34,8 @@ export type Session = {
   source: SessionSource;
   /** the agent whose verdict feed this session should see (hex pubkey, optional) */
   agentPubkey?: string;
+  /** which network that agent lives on ("public" | "private"), detected on set */
+  agentNetwork?: string;
   status: SessionStatus;
   createdAt: number;
   lastActivity: number;
@@ -131,11 +133,12 @@ export function endSession(sessionId: string): void {
   bus.emit("event", { type: "ended", sessionId } satisfies BusEvent);
 }
 
-/** Set/change the agent whose verdict feed this session shows (contestant-set). */
-export function setSessionAgent(sessionId: string, pubkey: string): boolean {
+/** Set/change the agent (and its detected network) for this session's feed. */
+export function setSessionAgent(sessionId: string, pubkey: string, network?: string): boolean {
   const s = store.get(sessionId);
   if (!s) return false;
   s.agentPubkey = pubkey || undefined;
+  s.agentNetwork = pubkey ? network : undefined;
   return true;
 }
 
