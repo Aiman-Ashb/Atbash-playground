@@ -39,10 +39,50 @@ export async function* streamHermesReply(
     return;
   }
 
-  const { openclawPath } = cfg();
   const agentId = opts.agentId || process.env.OPENCLAW_AGENT || "main";
   const sessionKey = opts.sessionKey || "default-session";
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+
+  const apiUrl = process.env.OPENCLAW_API_URL;
+  if (apiUrl) {
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.OPENCLAW_API_KEY) {
+        headers["Authorization"] = `Bearer ${process.env.OPENCLAW_API_KEY}`;
+      }
+      const response = await fetch(`${apiUrl}/agent`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          agentId,
+          sessionId: sessionKey,
+          message: lastUserMessage
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`Remote OpenClaw API returned status ${response.status}`);
+      }
+      const parsed = await response.json();
+      const textResponse = parsed?.result?.payloads?.[0]?.text || "";
+      if (!textResponse) {
+        yield "No response received from remote agent.";
+        return;
+      }
+      const chunks = textResponse.split(/(\s+)/);
+      for (const chunk of chunks) {
+        yield chunk;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return;
+    } catch (err) {
+      console.error("Remote OpenClaw API execution failed:", err);
+      const msg = err instanceof Error ? err.message : "Remote OpenClaw failed to respond.";
+      yield `[error: ${msg}]`;
+      return;
+    }
+  }
+
+  const { openclawPath } = cfg();
 
   try {
     const { stdout } = await execFileAsync(

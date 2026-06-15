@@ -8,6 +8,31 @@ const execFileAsync = promisify(execFile);
 export const runtime = "nodejs";
 
 export async function GET() {
+  const apiUrl = process.env.OPENCLAW_API_URL;
+  if (apiUrl) {
+    try {
+      const headers: Record<string, string> = {};
+      if (process.env.OPENCLAW_API_KEY) {
+        headers["Authorization"] = `Bearer ${process.env.OPENCLAW_API_KEY}`;
+      }
+      const response = await fetch(`${apiUrl}/agents`, { headers });
+      if (response.ok) {
+        const agents = await response.json();
+        return NextResponse.json({ agents });
+      }
+      throw new Error(`Remote API returned status ${response.status}`);
+    } catch (err) {
+      console.error("Failed to load remote openclaw agents:", err);
+      // Fallback
+      return NextResponse.json({
+        agents: [
+          { id: "main", name: "main (default)", isDefault: true },
+          { id: "tejo", name: "tejo", isDefault: false }
+        ]
+      });
+    }
+  }
+
   try {
     // Resolve via PATH by default; override with OPENCLAW_PATH if needed.
     const openclawPath = process.env.OPENCLAW_PATH || "openclaw";
