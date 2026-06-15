@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; at: number; streaming?: boolean };
 type Summary = { id: string; label: string; code: string; source: "code" | "telegram"; status: "pending" | "active" | "ended"; messageCount: number; lastActivity: number };
-type Code = { code: string; label: string; role: "contestant" | "admin"; createdAt: number; usedBySession?: string };
+type Code = { code: string; label: string; role: "contestant" | "admin"; agentPubkey?: string; createdAt: number; usedBySession?: string };
 
 export default function AdminPage() {
   const router = useRouter();
@@ -16,6 +16,9 @@ export default function AdminPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [codes, setCodes] = useState<Code[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
+  // Agent pubkey bound to the NEXT generated contestant code (so that
+  // contestant's verdict feed follows their own agent).
+  const [newAgent, setNewAgent] = useState("");
   const selectedRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -26,9 +29,14 @@ export default function AdminPage() {
     if (res.ok) setCodes((await res.json()).codes ?? []);
   }
   async function generateCode(role: "contestant" | "admin" = "contestant") {
-    const res = await fetch("/api/admin/codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
+    // Contestant codes carry the agent pubkey typed above, so that contestant's
+    // verdict feed follows their own agent. Admin codes ignore it.
+    const body: { role: string; agentPubkey?: string } = { role };
+    if (role === "contestant" && newAgent.trim()) body.agentPubkey = newAgent.trim();
+    const res = await fetch("/api/admin/codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (res.ok) {
       const { code } = await res.json();
+      setNewAgent("");
       await refreshCodes();
       copyCode(code.code);
     }
@@ -117,6 +125,13 @@ export default function AdminPage() {
       <div className="sidebar">
         <div className="codes-head">
           <h3>Access codes</h3>
+          <input
+            className="input"
+            style={{ fontSize: 11, padding: "7px 8px", marginBottom: 8 }}
+            value={newAgent}
+            onChange={(e) => setNewAgent(e.target.value)}
+            placeholder="contestant's agent pubkey (hex, optional)"
+          />
           <div className="code-gen">
             <button className="mini" onClick={() => generateCode("contestant")}>+ Contestant</button>
             <button className="mini admin" onClick={() => generateCode("admin")}>+ Admin</button>
@@ -129,6 +144,11 @@ export default function AdminPage() {
               <span className="codeVal" onClick={() => copyCode(c.code)} title="Click to copy">{c.code}</span>
               {c.role === "admin" && <span className="tag" style={{ borderColor: "#e0a52a", color: "#e0a52a" }}>admin</span>}
               <span className="meta"> · {c.role === "admin" ? "organizer" : c.usedBySession ? "in use" : "unused"}</span>
+              {c.role === "contestant" && (
+                <div className="meta" style={{ marginTop: 2 }}>
+                  agent: {c.agentPubkey ? `${c.agentPubkey.slice(0, 10)}…` : "default"}
+                </div>
+              )}
             </div>
             <div className="codeActions">
               <button className="mini" onClick={() => copyCode(c.code)}>{copied === c.code ? "✓" : "copy"}</button>

@@ -32,6 +32,8 @@ export type Session = {
   label: string;
   /** how the contestant entered — a plain code or a verified Telegram login */
   source: SessionSource;
+  /** the agent whose verdict feed this session should see (hex pubkey, optional) */
+  agentPubkey?: string;
   status: SessionStatus;
   createdAt: number;
   lastActivity: number;
@@ -66,6 +68,7 @@ export function createSession(
   label?: string,
   source: SessionSource = "code",
   status: SessionStatus = "active",
+  agentPubkey?: string,
 ): Session {
   const id = randomUUID();
   const now = Date.now();
@@ -74,6 +77,7 @@ export function createSession(
     code,
     label: label || `Contestant ${store.size + 1}`,
     source,
+    agentPubkey,
     status,
     createdAt: now,
     lastActivity: now,
@@ -125,6 +129,14 @@ export function endSession(sessionId: string): void {
   s.status = "ended";
   s.lastActivity = Date.now();
   bus.emit("event", { type: "ended", sessionId } satisfies BusEvent);
+}
+
+/** Set/change the agent whose verdict feed this session shows (contestant-set). */
+export function setSessionAgent(sessionId: string, pubkey: string): boolean {
+  const s = store.get(sessionId);
+  if (!s) return false;
+  s.agentPubkey = pubkey || undefined;
+  return true;
 }
 
 /** Admin approves a pending (e.g. Telegram) session so it can start chatting. */

@@ -60,8 +60,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid code." }, { status: 401 });
   }
 
-  // The code is the identity; carry its admin-set label onto the session.
-  const session = createSession(code, getCode(code)?.label, "code");
+  // The code is the identity; carry its admin-set label + bound agent (whose
+  // verdict feed this contestant sees) onto the session.
+  const session = createSession(code, generated?.label, "code", "active", generated?.agentPubkey);
   markCodeUsed(code, session.id);
   setContestantCookie(jar, session);
   return NextResponse.json({ role: "contestant", label: session.label });

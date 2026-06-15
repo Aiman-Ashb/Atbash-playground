@@ -9,7 +9,6 @@
 const NODE = (process.env.CHROMIA_NODE_URL || "https://node0.testnet.chromia.com:7740")
   .split(",")[0]!.trim().replace(/\/+$/, "");
 const BRID = (process.env.CHROMIA_BLOCKCHAIN_RID || "").trim();
-const AGENT_PUBKEY = (process.env.FEED_AGENT_PUBKEY || "").trim().replace(/^0x/, "");
 
 export type FeedItem = {
   id: string;
@@ -20,8 +19,9 @@ export type FeedItem = {
   tool: string;
 };
 
-export function feedConfigured(): boolean {
-  return Boolean(BRID && AGENT_PUBKEY);
+/** True when the chain is reachable for a given agent pubkey. */
+export function feedConfigured(pubkey: string): boolean {
+  return Boolean(BRID && pubkey);
 }
 
 /** POST a read query to the Chromia node REST endpoint. */
@@ -50,11 +50,11 @@ type FullRow = {
   tool_name?: string;
 };
 
-/** Recent judged actions for the configured agent, enriched with action + reason. */
-export async function getAgentFeed(limit = 15): Promise<FeedItem[]> {
-  if (!feedConfigured()) return [];
+/** Recent judged actions for the given agent, enriched with action + reason. */
+export async function getAgentFeed(pubkey: string, limit = 15): Promise<FeedItem[]> {
+  if (!feedConfigured(pubkey)) return [];
   const actions = await queryChain<ActionRow[]>("get_agent_actions", {
-    agent_pubkey: AGENT_PUBKEY,
+    agent_pubkey: pubkey,
     max_count: limit,
   });
   if (!Array.isArray(actions)) return [];

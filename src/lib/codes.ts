@@ -14,6 +14,8 @@ export type GeneratedCode = {
   code: string;
   label: string;
   role: CodeRole;
+  /** the agent whose verdict feed this contestant should see (hex pubkey) */
+  agentPubkey?: string;
   createdAt: number;
   /** set to the session id once a contestant opens a chat with this code */
   usedBySession?: string;
@@ -32,8 +34,9 @@ function randomCode(len = 6): string {
   return out;
 }
 
-/** Mint a fresh unique code. `label` is the name shown to the admin/stream. */
-export function generateCode(label?: string, role: CodeRole = "contestant"): GeneratedCode {
+/** Mint a fresh unique code. `label` is the name shown to the admin/stream;
+ *  `agentPubkey` binds a contestant code to the agent whose feed they'll see. */
+export function generateCode(label?: string, role: CodeRole = "contestant", agentPubkey?: string): GeneratedCode {
   let code = randomCode();
   while (store.has(code)) code = randomCode(); // collision-safe
   const fallback = role === "admin" ? `Admin ${store.size + 1}` : `Contestant ${store.size + 1}`;
@@ -41,6 +44,7 @@ export function generateCode(label?: string, role: CodeRole = "contestant"): Gen
     code,
     label: label?.trim() || fallback,
     role,
+    agentPubkey: role === "contestant" ? agentPubkey?.trim().replace(/^0x/, "").toLowerCase() || undefined : undefined,
     createdAt: Date.now(),
   };
   store.set(code, entry);

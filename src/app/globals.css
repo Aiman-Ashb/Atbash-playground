@@ -120,8 +120,12 @@ input, button {
 .playground .shell { flex: 1; min-width: 0; height: 100%; }
 
 .feed { width: 360px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
-.feed-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 700; color: var(--text); position: sticky; top: 0; background: var(--panel); }
+.feed-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 700; color: var(--text); position: sticky; top: 0; background: var(--panel); display: flex; align-items: center; justify-content: space-between; }
 .feed-empty { padding: 20px 16px; color: var(--dim); font-size: 13px; }
+.feed-form { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.feed-form label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.feed-agent { padding: 8px 16px; font-size: 11px; color: var(--dim); font-family: ui-monospace, monospace; border-bottom: 1px solid var(--border); }
+.link-btn { background: none; border: none; color: var(--accent); font-size: 11px; font-weight: 600; cursor: pointer; padding: 0; }
 
 .vcard { padding: 12px 16px; border-bottom: 1px solid var(--border); border-left: 3px solid var(--dim); }
 .vcard.v-green { border-left-color: var(--accent); }
