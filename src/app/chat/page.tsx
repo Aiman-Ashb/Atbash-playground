@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { VerdictFeed } from "@/components/VerdictFeed";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; streaming?: boolean };
 
@@ -133,6 +134,7 @@ export default function ChatPage() {
   }
 
   return (
+    <div className="playground">
     <div className="shell">
       <div className="topbar">
         <span className="badge"><span className="dot" />{label || "Contestant"}</span>
@@ -169,6 +171,8 @@ export default function ChatPage() {
         <button className="btn" disabled={sending || !input.trim()}>Send</button>
       </form>
       {error && <div className="error" style={{ padding: "0 20px 12px" }}>{error}</div>}
+    </div>
+    <VerdictFeed />
     </div>
   );
 }
