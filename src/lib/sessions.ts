@@ -32,6 +32,10 @@ export type Session = {
   label: string;
   /** how the contestant entered — a plain code or a verified Telegram login */
   source: SessionSource;
+  /** the agent whose verdict feed this session should see (hex pubkey, optional) */
+  agentPubkey?: string;
+  /** which network that agent lives on ("public" | "private"), detected on set */
+  agentNetwork?: string;
   status: SessionStatus;
   createdAt: number;
   lastActivity: number;
@@ -69,6 +73,7 @@ export function createSession(
   source: SessionSource = "code",
   status: SessionStatus = "active",
   agentId?: string,
+  agentPubkey?: string,
 ): Session {
   const id = randomUUID();
   const now = Date.now();
@@ -77,6 +82,7 @@ export function createSession(
     code,
     label: label || `Contestant ${store.size + 1}`,
     source,
+    agentPubkey,
     status,
     createdAt: now,
     lastActivity: now,
@@ -136,6 +142,15 @@ export function deleteSession(sessionId: string): void {
   if (deleted) {
     bus.emit("event", { type: "deleted", sessionId } satisfies BusEvent);
   }
+}
+
+/** Set/change the agent (and its detected network) for this session's feed. */
+export function setSessionAgent(sessionId: string, pubkey: string, network?: string): boolean {
+  const s = store.get(sessionId);
+  if (!s) return false;
+  s.agentPubkey = pubkey || undefined;
+  s.agentNetwork = pubkey ? network : undefined;
+  return true;
 }
 
 /** Admin approves a pending (e.g. Telegram) session so it can start chatting. */

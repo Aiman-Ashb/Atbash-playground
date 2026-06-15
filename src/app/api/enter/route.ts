@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { adminCodes, isValidAccessCode, makeToken, SESSION_COOKIE, ADMIN_COOKIE } from "@/lib/auth";
 import { createSession, getActiveSessionByCode, type Session } from "@/lib/sessions";
 import { getCode, markCodeUsed } from "@/lib/codes";
-import { verifyTelegramLogin, telegramLabel } from "@/lib/telegram";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -36,34 +35,15 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as {
     code?: string;
-    telegram?: Record<string, unknown>;
     telegramHandle?: string;
     agentId?: string;
   };
   const jar = await cookies();
   const secure = process.env.NODE_ENV === "production";
 
-  // ── Verified Telegram login (OAuth widget): cryptographically proven id ──
-  // Lands in "pending" for admin approval. Code prefix "tg:" marks it VERIFIED
-  // so the chat relay may key memory continuity to the real Telegram id.
-  if (body.telegram) {
-    const result = verifyTelegramLogin(body.telegram);
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 401 });
-    const code = `tg:${result.user.id}`;
-    let session = getActiveSessionByCode(code);
-    if (!session) {
-      session = createSession(code, telegramLabel(result.user), "telegram", "pending", body.agentId);
-    } else if (body.agentId) {
-      session.agentId = body.agentId;
-    }
-    setContestantCookie(jar, session);
-    return NextResponse.json({ role: "contestant", status: session.status, label: session.label });
-  }
-
   // ── Telegram by typed username/ID: UNVERIFIED self-claim ──
-  // No proof of ownership, so this is ONLY safe because of admin approval — the
-  // admin vets the handle before letting them in. Code prefix "tgc:" (claimed)
-  // marks it unverified so the relay never keys memory to a claimed id.
+  // Admin approval is the gate — the admin vets the handle before letting them
+  // in. Prefix "tgc:" marks the code as a claimed (unverified) Telegram handle.
   if (typeof body.telegramHandle === "string") {
     const handle = body.telegramHandle.trim().replace(/^@/, "");
     if (!handle || handle.length > 64 || !/^[A-Za-z0-9_]+$/.test(handle)) {
@@ -104,10 +84,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid code." }, { status: 401 });
   }
 
-  // Check if an active session already exists for this code
+  // Reuse an active session for this code if one exists, else create it.
+  // agentId = the OpenClaw agent to run; agentPubkey (bound to the code) = the
+  // agent whose verdict feed this contestant sees.
   let session = getActiveSessionByCode(code);
   if (!session) {
-    session = createSession(code, getCode(code)?.label, "code", "active", body.agentId);
+    session = createSession(code, generated?.label, "code", "active", body.agentId, generated?.agentPubkey);
     markCodeUsed(code, session.id);
   } else if (body.agentId) {
     session.agentId = body.agentId;

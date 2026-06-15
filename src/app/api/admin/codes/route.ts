@@ -16,12 +16,23 @@ export async function GET() {
   return NextResponse.json({ codes: listCodes() });
 }
 
-/** POST { label?, role? } — mint a fresh unique code (contestant or admin). */
+/** POST { label?, role?, agentPubkey? } — mint a fresh unique code. A
+ *  contestant code may bind an agent pubkey (the feed they'll see). */
 export async function POST(req: Request) {
   if (!(await requireAdmin())) return NextResponse.json({ error: "Admin only." }, { status: 401 });
-  const { label, role } = (await req.json().catch(() => ({}))) as { label?: string; role?: string };
+  const { label, role, agentPubkey } = (await req.json().catch(() => ({}))) as {
+    label?: string;
+    role?: string;
+    agentPubkey?: string;
+  };
   const codeRole = role === "admin" ? "admin" : "contestant";
-  return NextResponse.json({ code: generateCode(label, codeRole) });
+  if (agentPubkey) {
+    const hex = agentPubkey.trim().replace(/^0x/, "");
+    if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length % 2 !== 0 || hex.length < 2 || hex.length > 130) {
+      return NextResponse.json({ error: "Agent pubkey must be even-length hex." }, { status: 400 });
+    }
+  }
+  return NextResponse.json({ code: generateCode(label, codeRole, agentPubkey) });
 }
 
 /** DELETE { code } — revoke (cancel) a code. */

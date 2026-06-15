@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; at: number; streaming?: boolean };
 type Summary = { id: string; label: string; code: string; source: "code" | "telegram"; status: "pending" | "active" | "ended"; messageCount: number; lastActivity: number };
-type Code = { code: string; label: string; role: "contestant" | "admin"; createdAt: number; usedBySession?: string };
+type Code = { code: string; label: string; role: "contestant" | "admin"; agentPubkey?: string; createdAt: number; usedBySession?: string };
 
 export default function AdminPage() {
   const router = useRouter();
@@ -16,7 +16,9 @@ export default function AdminPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [codes, setCodes] = useState<Code[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
-  const [lookups, setLookups] = useState<Record<string, string>>({});
+  // Agent pubkey bound to the NEXT generated contestant code (so that
+  // contestant's verdict feed follows their own agent).
+  const [newAgent, setNewAgent] = useState("");
   const selectedRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -27,9 +29,14 @@ export default function AdminPage() {
     if (res.ok) setCodes((await res.json()).codes ?? []);
   }
   async function generateCode(role: "contestant" | "admin" = "contestant") {
-    const res = await fetch("/api/admin/codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
+    // Contestant codes carry the agent pubkey typed above, so that contestant's
+    // verdict feed follows their own agent. Admin codes ignore it.
+    const body: { role: string; agentPubkey?: string } = { role };
+    if (role === "contestant" && newAgent.trim()) body.agentPubkey = newAgent.trim();
+    const res = await fetch("/api/admin/codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (res.ok) {
       const { code } = await res.json();
+      setNewAgent("");
       await refreshCodes();
       copyCode(code.code);
     }
@@ -48,22 +55,6 @@ export default function AdminPage() {
         setSelected(null);
         setMessages([]);
       }
-    }
-  }
-  // Resolve a pending Telegram handle via the bot to confirm it's a real,
-  // registered account (existence only — not proof the person owns it).
-  async function checkTelegram(s: Summary) {
-    const handle = s.code.replace(/^tgc?:/, "");
-    setLookups((p) => ({ ...p, [s.id]: "checking…" }));
-    try {
-      const d = await (await fetch(`/api/admin/telegram-lookup?handle=${encodeURIComponent(handle)}`)).json();
-      let msg: string;
-      if (d.error) msg = `⚠ ${d.error}`;
-      else if (d.exists) msg = `✓ real account — ${d.name ?? "?"}${d.username ? ` @${d.username}` : ""} · id ${d.id}`;
-      else msg = `✗ no such account${d.reason ? ` (${d.reason})` : ""}`;
-      setLookups((p) => ({ ...p, [s.id]: msg }));
-    } catch {
-      setLookups((p) => ({ ...p, [s.id]: "⚠ lookup failed" }));
     }
   }
   function copyCode(code: string) {
@@ -151,6 +142,13 @@ export default function AdminPage() {
       <div className="sidebar">
         <div className="codes-head">
           <h3>Access codes</h3>
+          <input
+            className="input"
+            style={{ fontSize: 11, padding: "7px 8px", marginBottom: 8 }}
+            value={newAgent}
+            onChange={(e) => setNewAgent(e.target.value)}
+            placeholder="contestant's agent pubkey (hex, optional)"
+          />
           <div className="code-gen">
             <button className="mini" onClick={() => generateCode("contestant")}>+ Contestant</button>
             <button className="mini admin" onClick={() => generateCode("admin")}>+ Admin</button>
@@ -163,6 +161,11 @@ export default function AdminPage() {
               <span className="codeVal" onClick={() => copyCode(c.code)} title="Click to copy">{c.code}</span>
               {c.role === "admin" && <span className="tag" style={{ borderColor: "#e0a52a", color: "#e0a52a" }}>admin</span>}
               <span className="meta"> · {c.role === "admin" ? "organizer" : c.usedBySession ? "in use" : "unused"}</span>
+              {c.role === "contestant" && (
+                <div className="meta" style={{ marginTop: 2 }}>
+                  agent: {c.agentPubkey ? `${c.agentPubkey.slice(0, 10)}…` : "default"}
+                </div>
+              )}
             </div>
             <div className="codeActions">
               <button className="mini" onClick={() => copyCode(c.code)}>{copied === c.code ? "✓" : "copy"}</button>
@@ -175,23 +178,11 @@ export default function AdminPage() {
         {sessions.length === 0 && <div className="sess meta">No sessions yet.</div>}
         {sessions.map((s) => (
           <div key={s.id} className={`sess ${selected === s.id ? "active" : ""}`} onClick={() => openSession(s.id)}>
-            <div className="name">{s.label} {s.source === "telegram" && <span className="tag">{s.code.startsWith("tg:") ? "Telegram ✓" : "Telegram (unverified)"}</span>}</div>
+            <div className="name">{s.label}</div>
             <div className="meta">
-              {s.source === "telegram" ? "id" : "code"}: {s.code} · {s.messageCount} msgs ·{" "}
-              {s.status === "pending" ? <span className="pending">● awaiting approval</span>
-                : s.status === "active" ? <span className="live">● live</span>
-                : <span className="ended">ended</span>}
+              code: {s.code} · {s.messageCount} msgs ·{" "}
+              {s.status === "active" ? <span className="live">● live</span> : <span className="ended">ended</span>}
             </div>
-            {s.status === "pending" && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <div className="codeActions" style={{ marginTop: 8 }}>
-                  <button className="mini" onClick={() => sessionAction("approve", s.id)}>Approve</button>
-                  <button className="mini danger" onClick={() => sessionAction("deny", s.id)}>Deny</button>
-                  {s.source === "telegram" && <button className="mini admin" onClick={() => checkTelegram(s)}>Check TG</button>}
-                </div>
-                {lookups[s.id] && <div className="meta" style={{ marginTop: 6 }}>{lookups[s.id]}</div>}
-              </div>
-            )}
           </div>
         ))}
       </div>

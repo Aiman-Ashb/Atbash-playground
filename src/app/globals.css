@@ -10,6 +10,7 @@
   --accent-2: #25b486;
   --user: #1d9e75;
   --danger: #e5484d;
+  --header-h: 60px;
 }
 
 * { box-sizing: border-box; }
@@ -91,6 +92,7 @@ input, button {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 20px; border-bottom: 1px solid var(--border);
   background: var(--panel);
+  min-height: var(--header-h);
 }
 .topbar .grow { flex: 1; }
 .badge { font-size: 12px; color: var(--muted); }
@@ -114,6 +116,37 @@ input, button {
 .composer .btn { width: auto; margin-top: 0; padding: 12px 20px; }
 
 .empty { color: var(--dim); font-size: 14px; text-align: center; margin-top: 40px; }
+
+/* ── Playground layout: chat (left) + verdict feed (right) ── */
+.playground { display: flex; height: 100vh; }
+.playground .shell { flex: 1; min-width: 0; height: 100%; }
+
+.feed { width: 360px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
+.feed-head { padding: 12px 20px; min-height: var(--header-h); border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 700; color: var(--text); position: sticky; top: 0; background: var(--panel); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.feed-empty { padding: 20px 16px; color: var(--dim); font-size: 13px; }
+.feed-form { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.feed-form label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.feed-hint { font-size: 10px; color: var(--dim); margin-top: 5px; }
+.feed-agent { padding: 8px 16px; font-size: 11px; color: var(--dim); font-family: ui-monospace, monospace; border-bottom: 1px solid var(--border); }
+.net-tag { margin-left: 8px; font-family: ui-sans-serif, system-ui; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 4px; }
+.net-public { background: rgba(29,158,117,0.18); color: var(--accent-2); }
+.net-private { background: rgba(224,165,42,0.18); color: #e0a52a; }
+.link-btn { background: none; border: none; color: var(--accent); font-size: 11px; font-weight: 600; cursor: pointer; padding: 0; }
+
+.vcard { padding: 12px 16px; border-bottom: 1px solid var(--border); border-left: 3px solid var(--dim); }
+.vcard.v-green { border-left-color: var(--accent); }
+.vcard.v-yellow { border-left-color: #e0a52a; }
+.vcard.v-red { border-left-color: var(--danger); }
+.vtop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.vbadge { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 4px; background: var(--bgHover, #1c2624); color: var(--muted); }
+.v-green .vbadge { background: rgba(29,158,117,0.18); color: var(--accent-2); }
+.v-yellow .vbadge { background: rgba(224,165,42,0.18); color: #e0a52a; }
+.v-red .vbadge { background: rgba(229,72,77,0.18); color: var(--danger); }
+.vtime { font-size: 10px; color: var(--dim); font-family: ui-monospace, monospace; }
+.vaction { font-size: 13px; color: var(--text); margin-bottom: 4px; line-height: 1.4; }
+.vreason { font-size: 11px; color: var(--muted); line-height: 1.45; max-height: 4.5em; overflow: hidden; }
+
+@media (max-width: 720px) { .feed { display: none; } }
 
 /* ── Admin ── */
 .admin { display: grid; grid-template-columns: 300px 1fr; height: 100vh; }

@@ -32,23 +32,33 @@ which set the code belongs to (the observer entrance is never advertised):
 Give each contestant a **unique** code — the code is their identity, so each
 conversation is tracked per-user automatically (no database needed).
 
-### Telegram login (optional, identity only)
+## Verdict feed
 
-A contestant can also sign in with **Telegram** instead of a code. Important:
-Telegram here is just a **verified identity** — they still chat with the *same*
-Hermes agent through the same relay. We do **not** proxy the Telegram bot (the
-Bot API can't send messages to a bot on a user's behalf; that would need the
-user's Telegram account session).
+A right-side panel on `/chat` streams the contestant's agent's on-chain Atbash
+verdicts (PASS / HOLD / BLOCK) while they chat. It's a **public, read-only**
+Chromia query — no private key, no signing — keyed by an **agent pubkey**, one
+per contestant:
 
-- **Dev (no bot):** `.env.local` ships with `NEXT_PUBLIC_TELEGRAM_LOGIN=mock` +
-  `TELEGRAM_MOCK=1`, so a "Continue with Telegram (dev)" button simulates a
-  verified login for testing.
-- **Real widget:** create/choose a bot via @BotFather, run `/setdomain` for your
-  site, then set `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` (the @username) and
-  `TELEGRAM_BOT_TOKEN` (server verifies the login signature). Drop the mock vars.
+- **Admin-bound:** when the admin mints a "+ Contestant" code, they can paste
+  the agent's hex pubkey alongside it. That contestant's feed is locked to that
+  agent.
+- **Contestant-set:** if the code carries no agent, the panel prompts the
+  contestant for one. Safe to self-set — the feed is read-only chain data, not
+  an access gate.
+- **Fallback:** if neither is set, `FEED_AGENT_PUBKEY` (env) is used.
+- **Admin observer:** `/api/feed?sessionId=<id>` returns the same feed for any
+  contestant (admin cookie required).
 
-The server verifies Telegram's HMAC signature ([src/lib/telegram.ts](src/lib/telegram.ts))
-so the identity can't be forged. Admin sees Telegram sessions tagged accordingly.
+Configure the chain in `.env.local`:
+
+```
+CHROMIA_NODE_URL=https://node0.testnet.chromia.com:7740
+CHROMIA_BLOCKCHAIN_RID=<ATBASH_BRID>
+FEED_AGENT_PUBKEY=<fallback_pubkey>      # optional
+```
+
+Chain access lives in [`src/lib/chromia.ts`](src/lib/chromia.ts); the panel polls
+[`/api/feed`](src/app/api/feed/route.ts) every 5s.
 
 ## Connecting the real Hermes
 
