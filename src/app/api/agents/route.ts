@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 
 export async function GET() {
   const apiUrl = process.env.OPENCLAW_API_URL;
