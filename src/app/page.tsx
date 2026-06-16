@@ -116,14 +116,7 @@ export default function Home() {
         </form>
         <p className="hint">Telegram sign-ins wait for an organizer to approve you.</p>
 
-        <button
-          className="btn ghost"
-          style={{ marginTop: "16px" }}
-          onClick={() => router.push("/admin")}
-          type="button"
-        >
-          Admin Dashboard
-        </button>
+
 
         {error && <div className="error">{error}</div>}
       </div>
