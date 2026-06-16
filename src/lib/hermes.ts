@@ -65,16 +65,15 @@ export async function* streamHermesReply(
       if (!response.ok) {
         throw new Error(`Remote OpenClaw API returned status ${response.status}`);
       }
-      const parsed = await response.json();
-      const textResponse = parsed?.result?.payloads?.[0]?.text || "";
-      if (!textResponse) {
-        yield "No response received from remote agent.";
-        return;
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Response body is not readable.");
       }
-      const chunks = textResponse.split(/(\s+)/);
-      for (const chunk of chunks) {
-        yield chunk;
-        await new Promise((r) => setTimeout(r, 20));
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        yield decoder.decode(value, { stream: true });
       }
       return;
     } catch (err) {
