@@ -77,7 +77,7 @@ export default function Home() {
             >
               {agents.map((a) => (
                 <option key={a.id} value={a.id} style={{ background: "var(--panel)" }}>
-                  {a.name || a.id} {a.isDefault ? "(default)" : ""}
+                  {a.name || a.id}
                 </option>
               ))}
             </select>

@@ -5,11 +5,13 @@
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getCode } from "./codes";
 
 const SECRET = process.env.AUTH_SECRET || "dev-only-insecure-secret";
 
 export const SESSION_COOKIE = "atbash_session";
 export const ADMIN_COOKIE = "atbash_admin";
+
 
 function sign(value: string): string {
   return createHmac("sha256", SECRET).update(value).digest("hex");
@@ -79,3 +81,20 @@ export function isValidAccessCode(code: string): boolean {
 export function isValidAdminPassword(password: string): boolean {
   return adminCodes().has(password.trim());
 }
+
+/**
+ * Verify if the admin session token is valid.
+ * - If verifyCodeExists is true (Node.js backend): verifies signature, prefix, and that the code exists/unrevoked.
+ * - If verifyCodeExists is false (Edge runtime/middleware): verifies signature and prefix only.
+ */
+export function verifyAdminSessionToken(token: string | undefined, verifyCodeExists = true): boolean {
+  const decrypted = readToken(token);
+  if (!decrypted) return false;
+  if (!decrypted.startsWith("admin_")) return false;
+  if (!verifyCodeExists) return true;
+  const code = decrypted.slice(6);
+  if (adminCodes().has(code)) return true;
+  const generated = getCode(code);
+  return generated?.role === "admin";
+}
+

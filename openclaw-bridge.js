@@ -14,8 +14,10 @@ const execAsync = promisify(exec);
 const app = express();
 app.use(express.json());
 
+const os = require("os");
+
 const PORT = process.env.PORT || 4000;
-const HERMES_PATH = process.env.HERMES_PATH || "/Users/aimanmengesha/.local/bin/hermes";
+const HERMES_PATH = process.env.HERMES_PATH || path.join(os.homedir(), ".local", "bin", "hermes");
 const API_KEY = process.env.OPENCLAW_API_KEY || "change-me-in-production";
 
 // Map to track active sessions for interactive control
@@ -41,21 +43,37 @@ function authenticate(req, res, next) {
 }
 
 function getHermesProfiles() {
-  const profiles = [{ id: "default", name: "default", isDefault: true }];
-  const profilesDir = "/Users/aimanmengesha/.hermes/profiles";
+  const profilesDir = path.join(os.homedir(), ".hermes", "profiles");
+  let dirs = [];
   try {
     if (fs.existsSync(profilesDir)) {
-      const dirs = fs.readdirSync(profilesDir).filter(file => {
+      dirs = fs.readdirSync(profilesDir).filter(file => {
         return fs.statSync(path.join(profilesDir, file)).isDirectory();
-      });
-      dirs.forEach(dir => {
-        if (dir !== "default") {
-          profiles.push({ id: dir, name: dir, isDefault: false });
-        }
       });
     }
   } catch (err) {
     console.error("Failed to read hermes profiles directory:", err);
+  }
+
+  const customDirs = dirs.filter(d => d !== "default");
+  const profiles = [];
+
+  if (customDirs.length > 0) {
+    // If there are custom profiles, only list them
+    customDirs.forEach((dir, index) => {
+      profiles.push({
+        id: dir,
+        name: dir,
+        isDefault: dir === "tejo3" || (index === 0 && !customDirs.includes("tejo3"))
+      });
+    });
+  } else {
+    // Fall back to showing 'default' only if no custom profiles exist
+    profiles.push({
+      id: "default",
+      name: "default",
+      isDefault: true
+    });
   }
   return profiles;
 }
@@ -118,7 +136,6 @@ app.post("/agent", authenticate, async (req, res) => {
   let spawnArgs = [
     "-p", targetAgent,
     "chat",
-    "--quiet",
     "-q", message
   ];
   if (mappedSessionId) {
@@ -130,13 +147,150 @@ app.post("/agent", authenticate, async (req, res) => {
     spawnArgs = [HERMES_PATH, "-q", message];
   }
 
-  const child = spawn(spawnCmd, spawnArgs);
+  const child = spawn(spawnCmd, spawnArgs, {
+    env: {
+      ...process.env,
+      HERMES_INTERACTIVE: "1",
+      PYTHONUNBUFFERED: "1"
+    }
+  });
 
-  let accumulatedStdout = "";
-  let isBufferingApproval = false;
-  let discardConfirmation = false;
-  let isFirstLine = !isMock && !mappedSessionId;
   let stdoutBuffer = "";
+  let isBufferingApproval = false;
+  let approvalBuffer = [];
+  let discardConfirmation = false;
+
+  function cleanLineAnsi(line) {
+    return line.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "").trim();
+  }
+
+  function isChoiceOrOptionLine(line) {
+    const clean = cleanLineAnsi(line).toLowerCase();
+    return (
+      clean.includes("[o]nce") ||
+      clean.includes("[s]ession") ||
+      clean.includes("[a]lways") ||
+      clean.includes("[d]eny") ||
+      clean.includes("choice [") ||
+      clean.includes("choice (") ||
+      clean.includes("allowed once") ||
+      clean.includes("allowed session") ||
+      clean.includes("allowed always") ||
+      clean.includes("denied")
+    );
+  }
+
+  function processLine(line) {
+    const cleanLine = cleanLineAnsi(line);
+    
+    // 1. If we are discarding the confirmation result message after user input (e.g. "✓ Allowed once")
+    if (discardConfirmation) {
+      if (
+        cleanLine.includes("Allowed once") ||
+        cleanLine.includes("Denied") ||
+        cleanLine.includes("Allowed always") ||
+        cleanLine.includes("Allowed session") ||
+        cleanLine.includes("Allowed for session") ||
+        cleanLine.includes("Allowed for Session")
+      ) {
+        discardConfirmation = false;
+      }
+      return;
+    }
+
+    // 2. Handle dangerous command buffering
+    if (isBufferingApproval) {
+      approvalBuffer.push(cleanLine);
+      if (cleanLine.includes("Choice [") || cleanLine.includes("Choice (")) {
+        let description = "Dangerous command approval required";
+        let command = "";
+        
+        // Try parsing Format 1: Mock (DANGEROUS COMMAND: <desc>)
+        const mockDescIndex = approvalBuffer.findIndex(l => l.includes("DANGEROUS COMMAND:"));
+        if (mockDescIndex !== -1) {
+          const descLine = approvalBuffer[mockDescIndex];
+          description = descLine.split("DANGEROUS COMMAND:")[1].trim();
+          
+          // Filter out choice description, choices, and empty lines
+          const cmdLines = approvalBuffer.slice(mockDescIndex + 1)
+            .map(l => l.trim())
+            .filter(l => l.length > 0 && !isChoiceOrOptionLine(l));
+          command = cmdLines.join("\n").trim();
+        } else {
+          // Try parsing Format 2: Real Agent (TOOL APPROVAL REQUIRED)
+          const realHeaderIndex = approvalBuffer.findIndex(l => l.includes("TOOL APPROVAL REQUIRED"));
+          if (realHeaderIndex !== -1) {
+            const remainingLines = approvalBuffer.slice(realHeaderIndex + 1)
+              .map(l => l.trim())
+              .filter(l => l.length > 0 && !isChoiceOrOptionLine(l));
+            
+            if (remainingLines.length >= 2) {
+              description = remainingLines[0];
+              command = remainingLines.slice(1).join("\n").trim();
+            } else if (remainingLines.length === 1) {
+              command = remainingLines[0];
+            }
+          }
+        }
+
+        const payload = {
+          status: "approval_required",
+          command: command,
+          description: description,
+          allow_permanent: approvalBuffer.some(l => l.includes("[a]lways") || l.includes("(a)lways"))
+        };
+
+        res.write(`\n[__HERMES_APPROVAL_REQUIRED__:${JSON.stringify(payload)}]\n`);
+        isBufferingApproval = false;
+        approvalBuffer = [];
+      }
+      return;
+    }
+
+    // 3. Detect start of dangerous command
+    if (cleanLine.includes("DANGEROUS COMMAND:") || cleanLine.includes("TOOL APPROVAL REQUIRED")) {
+      isBufferingApproval = true;
+      approvalBuffer.push(cleanLine);
+      return;
+    }
+
+    // 4. Check for tool progress calls
+    const toolMatch = cleanLine.match(/(?:Running tool|Executing tool|Preparing tool|Tool call:|Calling tool)\s+([a-zA-Z0-9_-]+)/i);
+    if (toolMatch) {
+      const toolName = toolMatch[1];
+      res.write(`\n[__HERMES_PROGRESS__:${JSON.stringify({ status: "running_tool", tool: toolName })}]\n`);
+      return; // swallow progress line
+    }
+
+    // Swallow other system logs
+    if (
+      cleanLine === "⚠️" ||
+      cleanLine === "⚠️ " ||
+      cleanLine.startsWith("[System]") ||
+      cleanLine.startsWith("[Info]") ||
+      cleanLine.startsWith("[TUI]") ||
+      cleanLine.startsWith("⚕") ||
+      cleanLine.startsWith("→") ||
+      cleanLine.startsWith("✓") ||
+      cleanLine.startsWith("●") ||
+      cleanLine.toLowerCase().includes("initializing agent") ||
+      cleanLine.includes("───────────────────") ||
+      cleanLine.startsWith("Query:") ||
+      cleanLine.startsWith("Resume this session with:") ||
+      cleanLine.includes("hermes --resume") ||
+      cleanLine.startsWith("Session:") ||
+      cleanLine.startsWith("Duration:") ||
+      cleanLine.startsWith("Messages:") ||
+      cleanLine.includes("┊") ||
+      cleanLine.includes("⏱") ||
+      cleanLine.includes("BLOCKED:")
+    ) {
+      return;
+    }
+
+    // Default: write direct line to stream
+    res.write(line + "\n");
+  }
 
   const sessionObj = {
     child,
@@ -149,111 +303,39 @@ app.post("/agent", authenticate, async (req, res) => {
   activeSessions.set(sessionId, sessionObj);
 
   child.stdout.on("data", (chunk) => {
-    let text = chunk.toString();
-
-    // 1. Capture and strip the generated session ID line on the first run of a new session
-    if (isFirstLine) {
-      stdoutBuffer += text;
-      const newlineIndex = stdoutBuffer.indexOf("\n");
-      if (newlineIndex !== -1) {
-        const firstLine = stdoutBuffer.slice(0, newlineIndex).trim();
-        const match = firstLine.match(/^session_id:\s*(\S+)/);
-        if (match) {
-          const newHermesId = match[1];
-          console.log(`[Hermes Bridge] Mapped session ${sessionId} -> ${newHermesId}`);
-          sessionMap[sessionId] = newHermesId;
-          try {
-            fs.writeFileSync(mapPath, JSON.stringify(sessionMap, null, 2), "utf8");
-          } catch (e) {
-            console.error("Failed to write session map:", e);
-          }
-        } else {
-          console.warn(`[Hermes Bridge] Unexpected first line (no session ID): "${firstLine}"`);
-        }
-        text = stdoutBuffer.slice(newlineIndex + 1);
-        stdoutBuffer = "";
-        isFirstLine = false;
-        if (!text) return;
-      } else {
-        return;
-      }
+    stdoutBuffer += chunk.toString();
+    let newlineIndex;
+    while ((newlineIndex = stdoutBuffer.indexOf("\n")) !== -1) {
+      const line = stdoutBuffer.slice(0, newlineIndex);
+      stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+      processLine(line);
     }
-
-    // 2. If we are discarding the confirmation result message after user input
-    if (discardConfirmation) {
-      accumulatedStdout += text;
-      if (accumulatedStdout.includes("\n")) {
-        const lines = accumulatedStdout.split("\n");
-        lines.shift(); // remove "✓ Allowed once" / "✗ Denied"
-        accumulatedStdout = lines.join("\n");
-        discardConfirmation = false;
-        isBufferingApproval = false;
-        if (accumulatedStdout) {
-          res.write(accumulatedStdout);
-          accumulatedStdout = "";
-        }
-      }
-      return;
+    
+    // Check if the remaining buffer (which has no trailing newline) contains the choice prompt
+    if (isBufferingApproval && (stdoutBuffer.includes("Choice [") || stdoutBuffer.includes("Choice ("))) {
+      processLine(stdoutBuffer);
+      stdoutBuffer = "";
     }
-
-    // 3. Check if we need to start buffering
-    if (!isBufferingApproval) {
-      const dangerousIndex = text.indexOf("DANGEROUS COMMAND:");
-      if (dangerousIndex !== -1) {
-        isBufferingApproval = true;
-        let lineStartIndex = text.lastIndexOf("\n", dangerousIndex);
-        if (lineStartIndex === -1) {
-          lineStartIndex = 0;
-        } else {
-          lineStartIndex += 1;
-        }
-        if (lineStartIndex > 0) {
-          res.write(text.slice(0, lineStartIndex));
-        }
-        accumulatedStdout = text.slice(lineStartIndex);
-      } else {
-        res.write(text);
-        return;
-      }
-    } else {
-      accumulatedStdout += text;
-    }
-
-    // 4. If we are buffering, check if we have the full prompt
-    if (isBufferingApproval) {
-      if (accumulatedStdout.includes("Choice [") || accumulatedStdout.includes("Choice (")) {
-        const lines = accumulatedStdout.split("\n");
-        let description = "Dangerous command approval required";
-        let command = "";
-
-        const descLine = lines.find(line => line.includes("DANGEROUS COMMAND:"));
-        if (descLine) {
-          description = descLine.split("DANGEROUS COMMAND:")[1].trim();
-        }
-        const descIndex = lines.findIndex(line => line.includes("DANGEROUS COMMAND:"));
-        if (descIndex !== -1 && descIndex + 1 < lines.length) {
-          command = lines[descIndex + 1].trim();
-        }
-
-        const payload = {
-          status: "approval_required",
-          command: command,
-          description: description,
-          allow_permanent: accumulatedStdout.includes("[a]lways")
-        };
-
-        res.write(`\n[__HERMES_APPROVAL_REQUIRED__:${JSON.stringify(payload)}]\n`);
-        accumulatedStdout = "";
-      }
-      return;
-    }
-
-    // Default: write direct stdout to stream
-    res.write(text);
   });
 
   child.stderr.on("data", (data) => {
-    console.error(`[Hermes CLI Error] ${data}`);
+    const text = data.toString();
+    console.error(`[Hermes CLI Error] ${text}`);
+
+    // Parse and map the generated session ID from stderr
+    if (!isMock && !sessionMap[sessionId]) {
+      const match = text.match(/session_id:\s*(\S+)/);
+      if (match) {
+        const newHermesId = match[1];
+        console.log(`[Hermes Bridge] Mapped session ${sessionId} -> ${newHermesId}`);
+        sessionMap[sessionId] = newHermesId;
+        try {
+          fs.writeFileSync(mapPath, JSON.stringify(sessionMap, null, 2), "utf8");
+        } catch (e) {
+          console.error("Failed to write session map:", e);
+        }
+      }
+    }
   });
 
   child.on("error", (err) => {
@@ -266,6 +348,9 @@ app.post("/agent", authenticate, async (req, res) => {
 
   child.on("close", (code) => {
     console.log(`[Hermes Bridge] Process exited with code ${code}`);
+    if (stdoutBuffer) {
+      processLine(stdoutBuffer);
+    }
     activeSessions.delete(sessionId);
     res.end();
   });

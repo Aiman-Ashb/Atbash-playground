@@ -1,0 +1,41 @@
+# ── STAGE 1: INSTALL AND CONFIGURE RUNTIME ──
+FROM node:20-bookworm-slim
+
+# Install system dependencies (Python, Git, SQLite, curl)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    sqlite3 \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Hermes CLI using official Nous Research script
+RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+
+# Add Hermes CLI path to global environment PATH
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Set up working directory
+WORKDIR /app
+
+# Install Node.js Express bridge dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy bridge application code
+COPY openclaw-bridge.js ./
+COPY session-map.json ./
+
+# Define runtime variables
+ENV PORT=4000
+ENV HERMES_PATH=/root/.local/bin/hermes
+ENV NODE_ENV=production
+ENV PYTHONUNBUFFERED=1
+
+# Expose the bridge API port
+EXPOSE 4000
+
+# Start the bridge server
+CMD ["node", "openclaw-bridge.js"]

@@ -89,7 +89,7 @@ export async function POST(req: Request) {
   // Admin first, so an admin code is never treated as a contestant code.
   // Admin = static env code OR an admin-role generated code.
   if (adminCodes().has(code) || generated?.role === "admin") {
-    jar.set(ADMIN_COOKIE, makeToken("admin"), {
+    jar.set(ADMIN_COOKIE, makeToken("admin_" + code), {
       httpOnly: true,
       sameSite: "lax",
       secure,

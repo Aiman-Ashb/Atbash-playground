@@ -19,7 +19,10 @@ export async function GET() {
       if (process.env.OPENCLAW_API_KEY) {
         headers["Authorization"] = `Bearer ${process.env.OPENCLAW_API_KEY}`;
       }
-      const response = await fetch(`${apiUrl}/agents`, { headers });
+      const response = await fetch(`${apiUrl}/agents`, { 
+        headers,
+        cache: "no-store"
+      });
       if (response.ok) {
         const agents = await response.json();
         return NextResponse.json({ agents });
@@ -30,8 +33,7 @@ export async function GET() {
       // Fallback
       return NextResponse.json({
         agents: [
-          { id: "main", name: "main (default)", isDefault: true },
-          { id: "tejo", name: "tejo", isDefault: false }
+          { id: "default", name: "default", isDefault: true }
         ]
       });
     }
@@ -52,8 +54,7 @@ export async function GET() {
     // Fallback if openclaw isn't found or errors
     return NextResponse.json({
       agents: [
-        { id: "main", name: "main (default)", isDefault: true },
-        { id: "tejo", name: "tejo", isDefault: false }
+        { id: "default", name: "default", isDefault: true }
       ]
     });
   }

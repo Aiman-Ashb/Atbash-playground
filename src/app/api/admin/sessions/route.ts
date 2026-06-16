@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { readToken, ADMIN_COOKIE } from "@/lib/auth";
+import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/auth";
 import { listSessions, getSession, endSession, approveSession, deleteSession } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
 async function isAdmin(): Promise<boolean> {
   const jar = await cookies();
-  return readToken(jar.get(ADMIN_COOKIE)?.value) === "admin";
+  return verifyAdminSessionToken(jar.get(ADMIN_COOKIE)?.value);
 }
 
 /**

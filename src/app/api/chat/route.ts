@@ -31,21 +31,30 @@ export async function POST(req: Request) {
 
   appendMessage(session.id, "user", message.trim());
 
-  // Build the conversation for Hermes from stored history. Stored roles are
-  // already "user" | "assistant", both valid ChatMessage roles.
-  const history: ChatMessage[] = session.messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  // Find the last session reset marker to slice history
+  const lastResetIndex = session.messages.map((m) => m.content).lastIndexOf("--- Session Reset ---");
+  const messagesToProcess = lastResetIndex !== -1
+    ? session.messages.slice(lastResetIndex + 1)
+    : session.messages;
+
+  // Build the conversation for Hermes from stored history after the reset marker.
+  const history: ChatMessage[] = messagesToProcess
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
 
   // Scope long-term memory. Only a VERIFIED Telegram login (code prefix "tg:")
   // keys to the real Telegram id for continuity with their bot chats — a typed/
   // unverified handle ("tgc:") or a code stays isolated per session, so nobody
   // can claim another person's Telegram id to reach their agent memory.
+  // We append the version suffix so that resetting increments the backend session key.
+  const versionSuffix = session.version ? `_${session.version}` : "";
   const sessionKey =
     session.source === "telegram" && session.code.startsWith("tg:")
-      ? `agent:main:telegram:${session.code.slice(3)}`
-      : `agent:main:api:${session.id}`;
+      ? `agent:main:telegram:${session.code.slice(3)}${versionSuffix}`
+      : `agent:main:api:${session.id}${versionSuffix}`;
 
   // Create the assistant message up front so deltas have a target.
   const assistant = appendMessage(session.id, "assistant", "", true);
@@ -60,7 +69,7 @@ export async function POST(req: Request) {
         send("start", { messageId: assistant?.id });
         for await (const delta of streamHermesReply(history, { sessionKey, agentId: session.agentId })) {
           if (delta.includes("[__HERMES_APPROVAL_REQUIRED__:")) {
-            const match = delta.match(/\[__HERMES_APPROVAL_REQUIRED__:({.+?})\]/);
+            const match = delta.match(/\[__HERMES_APPROVAL_REQUIRED__:({[\s\S]+?})\]/);
             if (match) {
               const approvalData = JSON.parse(match[1]);
               send("approval_required", approvalData);
@@ -73,6 +82,14 @@ export async function POST(req: Request) {
               if (choice === "deny") {
                 break;
               }
+              continue;
+            }
+          }
+          if (delta.includes("[__HERMES_PROGRESS__:")) {
+            const match = delta.match(/\[__HERMES_PROGRESS__:({[\s\S]+?})\]/);
+            if (match) {
+              const progressData = JSON.parse(match[1]);
+              send("progress", progressData);
               continue;
             }
           }

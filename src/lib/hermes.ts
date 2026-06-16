@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { Agent } from "undici";
+
 // execFile (not exec) — no /bin/sh involved, so the user's chat message and the
 // agent id are passed as argv slots and CAN'T be parsed as shell. No quoting,
 // no escaping, no injection class.
@@ -60,8 +62,13 @@ export async function* streamHermesReply(
           agentId,
           sessionId: sessionKey,
           message: lastUserMessage
+        }),
+        // Avoid UND_ERR_BODY_TIMEOUT on long agent runs
+        dispatcher: new Agent({
+          bodyTimeout: 0,
+          headersTimeout: 0
         })
-      });
+      } as any);
       if (!response.ok) {
         throw new Error(`Remote OpenClaw API returned status ${response.status}`);
       }
@@ -79,22 +86,46 @@ export async function* streamHermesReply(
         while (true) {
           const markerStart = buffer.indexOf("[__HERMES_APPROVAL_REQUIRED__:");
           if (markerStart !== -1) {
-            const markerEnd = buffer.indexOf("]", markerStart);
+            const markerEnd = buffer.indexOf("}]", markerStart);
             if (markerEnd !== -1) {
               if (markerStart > 0) {
                 yield buffer.slice(0, markerStart);
               }
-              yield buffer.slice(markerStart, markerEnd + 1);
-              buffer = buffer.slice(markerEnd + 1);
+              yield buffer.slice(markerStart, markerEnd + 2);
+              buffer = buffer.slice(markerEnd + 2);
+              continue;
+            }
+          }
+          
+          const progressStart = buffer.indexOf("[__HERMES_PROGRESS__:");
+          if (progressStart !== -1) {
+            const progressEnd = buffer.indexOf("}]", progressStart);
+            if (progressEnd !== -1) {
+              if (progressStart > 0) {
+                yield buffer.slice(0, progressStart);
+              }
+              yield buffer.slice(progressStart, progressEnd + 2);
+              buffer = buffer.slice(progressEnd + 2);
               continue;
             }
           }
           
           const partialIndex = buffer.indexOf("[__HERMES_APPROVAL_REQUIRED__");
-          if (partialIndex !== -1) {
-            if (partialIndex > 0) {
-              yield buffer.slice(0, partialIndex);
-              buffer = buffer.slice(partialIndex);
+          const partialProgressIndex = buffer.indexOf("[__HERMES_PROGRESS__");
+          
+          let firstPartial = -1;
+          if (partialIndex !== -1 && partialProgressIndex !== -1) {
+            firstPartial = Math.min(partialIndex, partialProgressIndex);
+          } else if (partialIndex !== -1) {
+            firstPartial = partialIndex;
+          } else if (partialProgressIndex !== -1) {
+            firstPartial = partialProgressIndex;
+          }
+
+          if (firstPartial !== -1) {
+            if (firstPartial > 0) {
+              yield buffer.slice(0, firstPartial);
+              buffer = buffer.slice(firstPartial);
             }
             break;
           } else {

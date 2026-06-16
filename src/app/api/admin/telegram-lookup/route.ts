@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { readToken, ADMIN_COOKIE } from "@/lib/auth";
+import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,7 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   const jar = await cookies();
-  if (readToken(jar.get(ADMIN_COOKIE)?.value) !== "admin") {
+  if (!verifyAdminSessionToken(jar.get(ADMIN_COOKIE)?.value)) {
     return NextResponse.json({ error: "Admin only." }, { status: 401 });
   }
 

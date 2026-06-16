@@ -12,7 +12,7 @@ import { EventEmitter } from "node:events";
 
 export type Msg = {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   at: number;
   /** true while an assistant message is still streaming in */
@@ -37,6 +37,7 @@ export type Session = {
   lastActivity: number;
   messages: Msg[];
   agentId?: string;
+  version?: number;
 };
 
 // Survive Next.js hot-reload in dev by stashing on globalThis.
@@ -82,6 +83,7 @@ export function createSession(
     lastActivity: now,
     messages: [],
     agentId,
+    version: 0,
   };
   store.set(id, s);
   bus.emit("event", { type: "session", session: summarize(s) } satisfies BusEvent);

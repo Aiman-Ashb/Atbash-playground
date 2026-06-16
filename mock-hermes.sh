@@ -12,9 +12,7 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-echo "Initializing agent..."
-echo "────────────────────────────────────────"
-echo ""
+
 
 if [[ "$QUERY" == *"whoami"* || "$QUERY" == *"command"* ]]; then
     # Simulate dangerous command warning
@@ -37,9 +35,19 @@ if [[ "$QUERY" == *"whoami"* || "$QUERY" == *"command"* ]]; then
     else
         echo "      ✗ Denied"
     fi
-else
     # Simple reply
+    echo "Running tool read_file..."
+    sleep 1
+    echo "Running tool search_web..."
+    sleep 1
     echo "╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮"
     echo "    Hello! I am mock Hermes. I received your message: \"$QUERY\""
+    echo "╰──────────────────────────────────────────────────────────────────────────────╯"
+else
+    # Default reply for normal messages
+    echo "Running tool read_file..."
+    sleep 1
+    echo "╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮"
+    echo "    Hello! I am mock Hermes. I received your message: \"$QUERY\". How can I help you?"
     echo "╰──────────────────────────────────────────────────────────────────────────────╯"
 fi

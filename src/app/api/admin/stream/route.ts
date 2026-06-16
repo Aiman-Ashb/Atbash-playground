@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { readToken, ADMIN_COOKIE } from "@/lib/auth";
+import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/auth";
 import { subscribe, listSessions, type BusEvent } from "@/lib/sessions";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
  */
 export async function GET() {
   const jar = await cookies();
-  if (readToken(jar.get(ADMIN_COOKIE)?.value) !== "admin") {
+  if (!verifyAdminSessionToken(jar.get(ADMIN_COOKIE)?.value)) {
     return new Response("Admin login required.", { status: 401 });
   }
 

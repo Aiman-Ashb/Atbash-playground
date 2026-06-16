@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { readToken, ADMIN_COOKIE } from "@/lib/auth";
+import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/auth";
 import { generateCode, listCodes, revokeCode } from "@/lib/codes";
 
 export const runtime = "nodejs";
 
 async function requireAdmin(): Promise<boolean> {
   const jar = await cookies();
-  return readToken(jar.get(ADMIN_COOKIE)?.value) === "admin";
+  return verifyAdminSessionToken(jar.get(ADMIN_COOKIE)?.value);
 }
 
 /** GET — list admin-generated codes (with status). */
