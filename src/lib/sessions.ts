@@ -158,3 +158,29 @@ export function subscribe(handler: (e: BusEvent) => void): () => void {
   bus.on("event", handler);
   return () => bus.off("event", handler);
 }
+
+export type ApprovalPromise = {
+  resolve: (choice: string) => void;
+  reject: (err: Error) => void;
+};
+
+const pendingApprovals: Map<string, ApprovalPromise> = ((globalThis as any).__atbashPendingApprovals ??= new Map());
+
+export function registerPendingApproval(sessionId: string, promise: ApprovalPromise): void {
+  pendingApprovals.set(sessionId, promise);
+}
+
+export function getPendingApproval(sessionId: string): ApprovalPromise | undefined {
+  return pendingApprovals.get(sessionId);
+}
+
+export function resolvePendingApproval(sessionId: string, choice: string): boolean {
+  const p = pendingApprovals.get(sessionId);
+  if (p) {
+    p.resolve(choice);
+    pendingApprovals.delete(sessionId);
+    return true;
+  }
+  return false;
+}
+

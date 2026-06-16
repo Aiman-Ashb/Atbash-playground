@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Msg = { id: string; role: "user" | "assistant"; content: string; streaming?: boolean };
+type Msg = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  streaming?: boolean;
+  approval?: { command: string; description: string; allow_permanent: boolean; choice?: string };
+};
 
 export default function ChatPage() {
   const router = useRouter();
@@ -92,6 +98,10 @@ export default function ChatPage() {
             setMessages((m) =>
               m.map((x) => (x.id === assistantMsg.id ? { ...x, content: x.content + data.text } : x)),
             );
+          } else if (evName === "approval_required") {
+            setMessages((m) =>
+              m.map((x) => (x.id === assistantMsg.id ? { ...x, approval: { ...data } } : x)),
+            );
           } else if (evName === "error") {
             setError(data.error || "Agent error.");
           }
@@ -102,6 +112,27 @@ export default function ChatPage() {
     } finally {
       setMessages((m) => m.map((x) => (x.id === assistantMsg.id ? { ...x, streaming: false } : x)));
       setSending(false);
+    }
+  }
+
+  async function submitApproval(messageId: string, choice: string) {
+    try {
+      setError("");
+      const res = await fetch("/api/chat/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ choice })
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Failed to submit approval.");
+      }
+      
+      setMessages((m) =>
+        m.map((x) => (x.id === messageId ? { ...x, approval: x.approval ? { ...x.approval, choice } : undefined } : x))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to approve.");
     }
   }
 
@@ -156,6 +187,39 @@ export default function ChatPage() {
                     <span />
                     <span />
                   </span>
+                )}
+                {m.approval && (
+                  <div className="approval-card">
+                    <div className="approval-header">
+                      <span className="approval-icon">⚠️</span>
+                      <span className="approval-title">TOOL APPROVAL REQUIRED</span>
+                    </div>
+                    <div className="approval-desc">{m.approval.description}</div>
+                    <pre className="approval-cmd"><code>{m.approval.command}</code></pre>
+                    
+                    {!m.approval.choice ? (
+                      <div className="approval-actions">
+                        <button className="btn mini" style={{ margin: "4px 8px 4px 0", width: "auto" }} onClick={() => submitApproval(m.id, "once")}>
+                          Approve Once
+                        </button>
+                        <button className="btn mini" style={{ margin: "4px 8px 4px 0", width: "auto" }} onClick={() => submitApproval(m.id, "session")}>
+                          Approve for Session
+                        </button>
+                        {m.approval.allow_permanent && (
+                          <button className="btn mini" style={{ margin: "4px 8px 4px 0", width: "auto" }} onClick={() => submitApproval(m.id, "always")}>
+                            Always Approve
+                          </button>
+                        )}
+                        <button className="btn mini danger" style={{ margin: "4px 0", width: "auto" }} onClick={() => submitApproval(m.id, "deny")}>
+                          Deny
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={`approval-status ${m.approval.choice}`}>
+                        {m.approval.choice === "deny" ? "❌ Request Denied" : "✅ Request Approved"}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

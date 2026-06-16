@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { readToken, SESSION_COOKIE } from "@/lib/auth";
-import { getSession, appendMessage, appendDelta, finalizeMessage } from "@/lib/sessions";
+import { getSession, appendMessage, appendDelta, finalizeMessage, registerPendingApproval } from "@/lib/sessions";
 import { streamHermesReply, type ChatMessage } from "@/lib/hermes";
 
 export const runtime = "nodejs";
@@ -59,6 +59,23 @@ export async function POST(req: Request) {
       try {
         send("start", { messageId: assistant?.id });
         for await (const delta of streamHermesReply(history, { sessionKey, agentId: session.agentId })) {
+          if (delta.includes("[__HERMES_APPROVAL_REQUIRED__:")) {
+            const match = delta.match(/\[__HERMES_APPROVAL_REQUIRED__:({.+?})\]/);
+            if (match) {
+              const approvalData = JSON.parse(match[1]);
+              send("approval_required", approvalData);
+              
+              // Pause and wait for user's Approve/Deny decision
+              const choice = await new Promise<string>((resolve, reject) => {
+                registerPendingApproval(session.id, { resolve, reject });
+              });
+              
+              if (choice === "deny") {
+                break;
+              }
+              continue;
+            }
+          }
           if (assistant) appendDelta(session.id, assistant.id, delta);
           send("delta", { text: delta });
         }

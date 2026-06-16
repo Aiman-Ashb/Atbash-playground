@@ -70,10 +70,39 @@ export async function* streamHermesReply(
         throw new Error("Response body is not readable.");
       }
       const decoder = new TextDecoder();
+      let buffer = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        yield decoder.decode(value, { stream: true });
+        buffer += decoder.decode(value, { stream: true });
+        
+        while (true) {
+          const markerStart = buffer.indexOf("[__HERMES_APPROVAL_REQUIRED__:");
+          if (markerStart !== -1) {
+            const markerEnd = buffer.indexOf("]", markerStart);
+            if (markerEnd !== -1) {
+              if (markerStart > 0) {
+                yield buffer.slice(0, markerStart);
+              }
+              yield buffer.slice(markerStart, markerEnd + 1);
+              buffer = buffer.slice(markerEnd + 1);
+              continue;
+            }
+          }
+          
+          const partialIndex = buffer.indexOf("[__HERMES_APPROVAL_REQUIRED__");
+          if (partialIndex !== -1) {
+            if (partialIndex > 0) {
+              yield buffer.slice(0, partialIndex);
+              buffer = buffer.slice(partialIndex);
+            }
+            break;
+          } else {
+            yield buffer;
+            buffer = "";
+            break;
+          }
+        }
       }
       return;
     } catch (err) {
