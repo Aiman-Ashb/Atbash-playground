@@ -11,7 +11,9 @@ export async function GET() {
   const apiUrl = process.env.OPENCLAW_API_URL;
   if (apiUrl) {
     try {
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = {
+        "bypass-tunnel-reminder": "true"
+      };
       if (process.env.OPENCLAW_API_KEY) {
         headers["Authorization"] = `Bearer ${process.env.OPENCLAW_API_KEY}`;
       }

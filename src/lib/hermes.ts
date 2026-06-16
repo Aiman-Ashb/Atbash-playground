@@ -46,7 +46,10 @@ export async function* streamHermesReply(
   const apiUrl = process.env.OPENCLAW_API_URL;
   if (apiUrl) {
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "bypass-tunnel-reminder": "true"
+      };
       if (process.env.OPENCLAW_API_KEY) {
         headers["Authorization"] = `Bearer ${process.env.OPENCLAW_API_KEY}`;
       }
